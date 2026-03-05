@@ -2,7 +2,7 @@
  * SmartInvoice Africa — Invoices Page
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Avatar, Badge, Btn, Panel, Modal, Input, Select } from "../components/UI.jsx";
 import { fmt, currencySymbol, makeInitials, AVATAR_COLORS } from "../data/mockData.js";
 import { fetchInvoices, createInvoice, updateInvoiceStatus, deleteInvoice } from "../services/invoiceService.js";
@@ -30,13 +30,29 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
   // Enable realtime updates
   useRealtimeInvoices(setInvoices);
 
-  const filtered = invoices.filter((inv) => {
-    const matchFilter = filter === "all" || inv.status === filter;
-    const matchSearch = 
-      (inv.customer_name && inv.customer_name.toLowerCase().includes(search.toLowerCase())) || 
-      (inv.invoice_number && inv.invoice_number.toLowerCase().includes(search.toLowerCase()));
-    return matchFilter && matchSearch;
-  });
+  const filtered = useMemo(() => {
+    return invoices.filter((inv) => {
+      const matchFilter = filter === "all" || inv.status === filter;
+      const matchSearch =
+        (inv.customer_name && inv.customer_name.toLowerCase().includes(search.toLowerCase())) ||
+        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(search.toLowerCase()));
+      return matchFilter && matchSearch;
+    });
+  }, [invoices, filter, search]);
+
+  const stats = useMemo(() => {
+    return invoices.reduce(
+      (acc, inv) => {
+        const amt = inv.total || 0;
+        acc.totalInvoiced += amt;
+        if (inv.status !== "paid") acc.awaitingPayment += amt;
+        if (inv.status === "paid") acc.collected += amt;
+        if (inv.status === "overdue") acc.overdue += amt;
+        return acc;
+      },
+      { totalInvoiced: 0, awaitingPayment: 0, collected: 0, overdue: 0 }
+    );
+  }, [invoices]);
 
   const handleCreate = async (formData) => {
     try {
@@ -76,10 +92,10 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
       {/* ── Summary cards ── */}
       <div className="grid-4" style={{ marginBottom:20 }}>
         {[
-          { label:"Total Invoiced",    val: fmt(invoices.reduce((a,b)=>a+b.total,0), sym), color:"#1A4A35" },
-          { label:"Awaiting Payment",  val: fmt(invoices.filter(i=>i.status!=="paid").reduce((a,b)=>a+b.total,0), sym), color:"#E8A020" },
-          { label:"Collected",         val: fmt(invoices.filter(i=>i.status==="paid").reduce((a,b)=>a+b.total,0), sym), color:"#1A7A50" },
-          { label:"Overdue",           val: fmt(invoices.filter(i=>i.status==="overdue").reduce((a,b)=>a+b.total,0), sym), color:"#C4522A" },
+          { label:"Total Invoiced",    val: fmt(stats.totalInvoiced, sym), color:"#1A4A35" },
+          { label:"Awaiting Payment",  val: fmt(stats.awaitingPayment, sym), color:"#E8A020" },
+          { label:"Collected",         val: fmt(stats.collected, sym), color:"#1A7A50" },
+          { label:"Overdue",           val: fmt(stats.overdue, sym), color:"#C4522A" },
         ].map((s, i) => (
           <div key={i} style={{ background:"#FDFAF4", border:"1px solid #E2DAC8", borderRadius:11, padding:"14px 16px" }}>
             <div style={{ fontSize:10.5, color:"#6B6455", textTransform:"uppercase", letterSpacing:".6px", marginBottom:4 }}>{s.label}</div>
