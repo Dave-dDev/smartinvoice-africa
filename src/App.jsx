@@ -266,6 +266,11 @@ export default function App() {
 
   // ── Auth effect ──
   useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
     // Get session on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -292,6 +297,28 @@ export default function App() {
       default:          return <Dashboard {...props} setPage={setPage} />;
     }
   };
+
+  // ── Error state ──
+  if (!supabase) {
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "white",
+        fontSize: "18px",
+        padding: "20px",
+        textAlign: "center"
+      }}>
+        <h2>Configuration Error</h2>
+        <p>Supabase connection details are missing.</p>
+        <p>Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.</p>
+      </div>
+    );
+  }
 
   // ── Loading state ──
   if (authLoading) {
