@@ -19,7 +19,7 @@ import VATPage   from "./pages/VATPage.jsx";
 import { INVOICES_DATA } from "./data/mockData.js";
 import { supabase } from "./lib/supabase.js";
 
-function AuthPage() {
+function AuthPage({ isConfigured }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -134,6 +134,23 @@ function AuthPage() {
         <h1 style={{ marginBottom: "20px", textAlign: "center" }}>
           SmartInvoice Africa
         </h1>
+
+        {!isConfigured && (
+          <div style={{
+            padding: "15px",
+            background: "#fff9c4",
+            border: "1px solid #fbc02d",
+            color: "#574200",
+            borderRadius: "4px",
+            marginBottom: "20px",
+            fontSize: "14px",
+            lineHeight: "1.5"
+          }}>
+            <strong>⚠️ Configuration Missing</strong><br/>
+            Supabase environment variables are not set. Please add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to your deployment.
+          </div>
+        )}
+
         <p style={{ textAlign: "center", color: "#666", marginBottom: "30px" }}>
           {isSignUp ? "Create your account" : "Sign in to your account"}
         </p>
@@ -312,7 +329,8 @@ export default function App() {
 
   // ── Not authenticated ──
   if (!user) {
-    return <AuthPage />;
+    const isConfigured = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+    return <AuthPage isConfigured={isConfigured} />;
   }
 
   // ── Authenticated ──
