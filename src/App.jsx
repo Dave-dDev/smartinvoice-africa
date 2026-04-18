@@ -93,6 +93,7 @@ function AuthPage() {
         if (signinError) throw signinError;
       }
     } catch (err) {
+      console.error("Signup/Signin error:", err);
       // Provide user-friendly error messages
       const errorMsg = err.message || "";
       if (errorMsg.includes("rate limit") || errorMsg.includes("too many")) {
