@@ -66,7 +66,7 @@ function HeroStrip({ sym, receivables, invoices, setPage }) {
       <div style={{ position: "relative" }}>
         <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginBottom: 3 }}>Good morning,</div>
         <div style={{ fontFamily:"Syne,sans-serif", fontSize:21, fontWeight:700, color:"#fff", marginBottom:12 }}>
-          Adeola Okonkwo 👋
+          Adejumo Aderinsola 👋
         </div>
         <div style={{ display:"flex", gap:22, flexWrap:"wrap" }}>
           {[
