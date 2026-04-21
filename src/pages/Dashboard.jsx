@@ -2,14 +2,18 @@
  * SmartInvoice Africa — Dashboard Page
  */
 
-import { Avatar, Badge, Btn, Panel, PanelHeader, StatCard } from "../components/UI.jsx";
+import { Avatar, Badge, Btn, Panel, PanelHeader, StatCard, RealtimeStatus } from "../components/UI.jsx";
 import { ACTIVITY, fmt, currencySymbol } from "../data/mockData.js";
+import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
 
-export default function Dashboard({ setPage, currency, invoices }) {
+export default function Dashboard({ setPage, currency, invoices, setInvoices }) {
   const sym         = currencySymbol(currency);
   const receivables = invoices.filter((i) => i.status !== "paid").reduce((a, b) => a + b.amount, 0);
   const paidAmt     = invoices.filter((i) => i.status === "paid").reduce((a, b) => a + b.amount, 0);
   const overdueCnt  = invoices.filter((i) => i.status === "overdue").length;
+
+  // Enable realtime updates if setInvoices is provided
+  const realtime = setInvoices ? useRealtimeInvoices(setInvoices) : { connectionStatus: "SUBSCRIBED", lastUpdate: null, updateCount: 0 };
 
   return (
     <div className="page-content">
@@ -19,6 +23,7 @@ export default function Dashboard({ setPage, currency, invoices }) {
         receivables={receivables}
         invoices={invoices}
         setPage={setPage}
+        realtime={realtime}
       />
 
       {/* ── Metric cards ── */}
@@ -42,7 +47,7 @@ export default function Dashboard({ setPage, currency, invoices }) {
 }
 
 // ── Hero Strip ────────────────────────────────────────────────────────────────
-function HeroStrip({ sym, receivables, invoices, setPage }) {
+function HeroStrip({ sym, receivables, invoices, setPage, realtime }) {
   return (
     <div
       className="fade-up"
@@ -68,7 +73,7 @@ function HeroStrip({ sym, receivables, invoices, setPage }) {
         <div style={{ fontFamily:"Syne,sans-serif", fontSize:21, fontWeight:700, color:"#fff", marginBottom:12 }}>
           Adejumo Aderinsola 👋
         </div>
-        <div style={{ display:"flex", gap:22, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", gap:22, flexWrap:"wrap", alignItems:"center" }}>
           {[
             { val: fmt(receivables, sym),                                               label: "Outstanding receivables" },
             { val: `${invoices.filter((i) => i.status !== "paid").length} invoices`,    label: "Awaiting payment"        },
@@ -86,7 +91,8 @@ function HeroStrip({ sym, receivables, invoices, setPage }) {
       </div>
 
       {/* Actions */}
-      <div style={{ display:"flex", flexDirection:"column", gap:8, position:"relative" }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:8, position:"relative", alignItems: "flex-end" }}>
+        <RealtimeStatus connectionStatus={realtime.connectionStatus} lastUpdate={realtime.lastUpdate} updateCount={realtime.updateCount} showDetails />
         <Btn variant="gold" onClick={() => setPage("invoices")}>＋ New Invoice</Btn>
         <Btn variant="outline" style={{ borderColor:"rgba(255,255,255,.3)", color:"rgba(255,255,255,.85)", background:"rgba(255,255,255,.08)" }}>
           📤 Share via WhatsApp

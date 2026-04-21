@@ -284,13 +284,13 @@ export default function App() {
   const renderPage = () => {
     const props = { currency, invoices };
     switch (page) {
-      case "dashboard": return <Dashboard {...props} setPage={setPage} />;
+      case "dashboard": return <Dashboard {...props} setInvoices={setInvoices} setPage={setPage} />;
       case "invoices":  return <Invoices  {...props} setInvoices={setInvoices} />;
       case "expenses":  return <Expenses  currency={currency} />;
       case "customers": return <Customers currency={currency} />;
       case "reports":   return <Reports   {...props} />;
       case "vat":       return <VATPage   currency={currency} />;
-      default:          return <Dashboard {...props} setPage={setPage} />;
+      default:          return <Dashboard {...props} setInvoices={setInvoices} setPage={setPage} />;
     }
   };
 

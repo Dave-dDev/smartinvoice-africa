@@ -3,9 +3,10 @@
  */
 
 import { useState, useEffect } from "react";
-import { Avatar, Btn, Modal, Input } from "../components/UI.jsx";
+import { Avatar, Btn, Modal, Input, RealtimeStatus } from "../components/UI.jsx";
 import { CUSTOMERS_DATA, AVATAR_COLORS, fmt, currencySymbol, makeInitials } from "../data/mockData.js";
 import { fetchCustomers, createCustomer } from "../services/customerService.js";
+import { useRealtimeCustomers } from "../hooks/useRealtimeCustomers.js";
 
 export default function Customers({ currency }) {
   const sym = currencySymbol(currency);
@@ -28,6 +29,9 @@ export default function Customers({ currency }) {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Enable realtime updates
+  const realtime = useRealtimeCustomers(setCustomers);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -76,6 +80,7 @@ export default function Customers({ currency }) {
         />
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <span style={{ fontSize:12.5, color:"#6B6455" }}>{filtered.length} customers</span>
+          <RealtimeStatus connectionStatus={realtime.connectionStatus} lastUpdate={realtime.lastUpdate} updateCount={realtime.updateCount} />
           <Btn variant="gold" onClick={() => setShowModal(true)}>＋ Add Customer</Btn>
         </div>
       </div>

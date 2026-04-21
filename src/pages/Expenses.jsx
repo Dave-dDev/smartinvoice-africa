@@ -3,9 +3,10 @@
  */
 
 import { useState, useEffect } from "react";
-import { Btn, Panel, PanelHeader, Modal, Input, Select } from "../components/UI.jsx";
+import { Btn, Panel, PanelHeader, Modal, Input, Select, RealtimeStatus } from "../components/UI.jsx";
 import { EXPENSES_DATA, EXP_COLORS, fmt, currencySymbol } from "../data/mockData.js";
 import { fetchExpenses, createExpense } from "../services/expenseService.js";
+import { useRealtimeExpenses } from "../hooks/useRealtimeExpenses.js";
 
 export default function Expenses({ currency }) {
   const sym = currencySymbol(currency);
@@ -27,6 +28,9 @@ export default function Expenses({ currency }) {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Enable realtime updates
+  const realtime = useRealtimeExpenses(setExpenses);
 
   const categories = ["All", "Inventory", "Transport", "Salaries", "Utilities", "Marketing", "Rent", "Other"];
 
@@ -74,7 +78,8 @@ export default function Expenses({ currency }) {
       {/* ── Toolbar ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <CategoryTabs active={filterCat} categories={categories} onChange={setFilterCat} />
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <RealtimeStatus connectionStatus={realtime.connectionStatus} lastUpdate={realtime.lastUpdate} updateCount={realtime.updateCount} />
           <Btn variant="ghost">📸 Scan Receipt</Btn>
           <Btn variant="gold" onClick={() => setShowModal(true)}>＋ Add Expense</Btn>
         </div>

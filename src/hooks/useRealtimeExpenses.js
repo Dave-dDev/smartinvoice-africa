@@ -2,32 +2,32 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 /**
- * Real-time hook for invoices with connection status tracking
- * @param {Function} setInvoices - State setter for invoices
+ * Real-time hook for expenses with connection status tracking
+ * @param {Function} setExpenses - State setter for expenses
  * @returns {Object} Connection status and metrics
  */
-export function useRealtimeInvoices(setInvoices) {
+export function useRealtimeExpenses(setExpenses) {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [lastUpdate, setLastUpdate] = useState(null);
   const [updateCount, setUpdateCount] = useState(0);
 
   useEffect(() => {
     const channel = supabase
-      .channel("invoices-changes")
+      .channel("expenses-changes")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "invoices" },
+        { event: "*", schema: "public", table: "expenses" },
         (payload) => {
-          console.log("🔄 Invoice change detected:", payload.eventType, payload.new?.id || payload.old?.id);
+          console.log("🔄 Expense change detected:", payload.eventType, payload.new?.id || payload.old?.id);
           
           if (payload.eventType === "INSERT") {
-            setInvoices((prev) => [payload.new, ...prev]);
+            setExpenses((prev) => [payload.new, ...prev]);
           } else if (payload.eventType === "UPDATE") {
-            setInvoices((prev) =>
-              prev.map((inv) => (inv.id === payload.new.id ? { ...inv, ...payload.new } : inv))
+            setExpenses((prev) =>
+              prev.map((exp) => (exp.id === payload.new.id ? { ...exp, ...payload.new } : exp))
             );
           } else if (payload.eventType === "DELETE") {
-            setInvoices((prev) => prev.filter((inv) => inv.id !== payload.old.id));
+            setExpenses((prev) => prev.filter((exp) => exp.id !== payload.old.id));
           }
           
           setLastUpdate(new Date());
@@ -35,15 +35,15 @@ export function useRealtimeInvoices(setInvoices) {
         }
       )
       .subscribe((status) => {
-        console.log("📡 Invoice subscription status:", status);
+        console.log("📡 Expense subscription status:", status);
         setConnectionStatus(status);
       });
 
     return () => {
-      console.log("🔌 Cleaning up invoice subscription");
+      console.log("🔌 Cleaning up expense subscription");
       supabase.removeChannel(channel);
     };
-  }, [setInvoices]);
+  }, [setExpenses]);
 
   return {
     connectionStatus,

@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Avatar, Badge, Btn, Panel, Modal, Input, Select } from "../components/UI.jsx";
+import { Avatar, Badge, Btn, Panel, Modal, Input, Select, RealtimeStatus } from "../components/UI.jsx";
 import { fmt, currencySymbol, makeInitials, AVATAR_COLORS } from "../data/mockData.js";
 import { fetchInvoices, createInvoice, updateInvoiceStatus, deleteInvoice } from "../services/invoiceService.js";
 import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
@@ -27,8 +27,8 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
       .finally(() => setLoading(false));
   }, []);
 
-  // Enable realtime updates
-  useRealtimeInvoices(setInvoices);
+  // Enable realtime updates and get connection status
+  const realtime = useRealtimeInvoices(setInvoices);
 
   const filtered = invoices.filter((inv) => {
     const matchFilter = filter === "all" || inv.status === filter;
@@ -70,7 +70,10 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
           />
           <StatusFilter active={filter} onChange={setFilter} />
         </div>
-        <Btn variant="gold" onClick={() => setShowCreate(true)}>＋ New Invoice</Btn>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <RealtimeStatus connectionStatus={realtime.connectionStatus} lastUpdate={realtime.lastUpdate} updateCount={realtime.updateCount} />
+          <Btn variant="gold" onClick={() => setShowCreate(true)}>＋ New Invoice</Btn>
+        </div>
       </div>
 
       {/* ── Summary cards ── */}

@@ -328,3 +328,6 @@ export function SectionTitle({ children }) {
     </div>
   );
 }
+
+// Re-export RealtimeStatus for convenience
+export { RealtimeStatus, RealtimeBadge } from "./RealtimeStatus.jsx";
