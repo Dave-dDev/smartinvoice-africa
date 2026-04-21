@@ -23,11 +23,11 @@ export const EXPENSES_DATA = [
 
 // ── CUSTOMERS ─────────────────────────────────────────────────────────────────
 export const CUSTOMERS_DATA = [
-  { id: 1, name: "TechKing Solutions",      contact: "Emeka Obi",       email: "info@techking.ng",      city: "Lagos",         totalInvoiced: 3400000, lastInvoice: "2025-07-12", initials: "TK", color: "#2A6B4F" },
-  { id: 2, name: "Fola & Sons Enterprises", contact: "Folake Adeyemi",  email: "fola@folasons.com",     city: "Abuja",         totalInvoiced: 2800000, lastInvoice: "2025-07-08", initials: "FS", color: "#C4522A" },
-  { id: 3, name: "MegaWorks Ltd",           contact: "Chidi Nwosu",     email: "accounts@megaworks.ng", city: "Port Harcourt", totalInvoiced: 1200000, lastInvoice: "2025-07-01", initials: "MW", color: "#5A3A8A" },
-  { id: 4, name: "Bayero Nig. Ltd",         contact: "Aminu Bayero",    email: "bayero@bayeronig.com",  city: "Kano",          totalInvoiced: 900000,  lastInvoice: "2025-06-28", initials: "BN", color: "#1A5A8A" },
-  { id: 5, name: "Greenstar Supplies",      contact: "Ngozi Eze",       email: "green@greenstar.ng",    city: "Enugu",         totalInvoiced: 1875000, lastInvoice: "2025-07-05", initials: "GS", color: "#8A4A1A" },
+  { id: 1, name: "TechKing Solutions",      contact_person: "Emeka Obi",       email: "info@techking.ng",      city: "Lagos",         country: "Nigeria", total_invoiced: 3400000, created_at: "2025-06-15", initials: "TK", color: "#2A6B4F" },
+  { id: 2, name: "Fola & Sons Enterprises", contact_person: "Folake Adeyemi",  email: "fola@folasons.com",     city: "Abuja",         country: "Nigeria", total_invoiced: 2800000, created_at: "2025-05-22", initials: "FS", color: "#C4522A" },
+  { id: 3, name: "MegaWorks Ltd",           contact_person: "Chidi Nwosu",     email: "accounts@megaworks.ng", city: "Port Harcourt", country: "Nigeria", total_invoiced: 1200000, created_at: "2025-04-10", initials: "MW", color: "#5A3A8A" },
+  { id: 4, name: "Bayero Nig. Ltd",         contact_person: "Aminu Bayero",    email: "bayero@bayeronig.com",  city: "Kano",          country: "Nigeria", total_invoiced: 900000,  created_at: "2025-03-28", initials: "BN", color: "#1A5A8A" },
+  { id: 5, name: "Greenstar Supplies",      contact_person: "Ngozi Eze",       email: "green@greenstar.ng",    city: "Enugu",         country: "Nigeria", total_invoiced: 1875000, created_at: "2025-05-05", initials: "GS", color: "#8A4A1A" },
 ];
 
 // ── ACTIVITY ──────────────────────────────────────────────────────────────────

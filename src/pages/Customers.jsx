@@ -11,23 +11,46 @@ import { useRealtimeCustomers } from "../hooks/useRealtimeCustomers.js";
 export default function Customers({ currency }) {
   const sym = currencySymbol(currency);
 
+  // Start with mock data immediately so page displays
   const [customers, setCustomers] = useState(CUSTOMERS_DATA);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selected,  setSelected]  = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [search,    setSearch]    = useState("");
   const [form, setForm] = useState({ name:"", contact_person:"", email:"", city:"", country:"" });
 
-  // Load customers on mount
+  // Load from Supabase in background
   useEffect(() => {
+    let isMounted = true;
+    console.log("📦 Loading customers from Supabase...");
     fetchCustomers()
-      .then(setCustomers)
-      .catch((e) => {
-        console.error("Failed to load customers:", e.message);
-        setError(e.message);
+      .then((data) => {
+        console.log("✅ Fetched customers:", data);
+        // Only update if we got data from database AND component is still mounted
+        if (isMounted && data && data.length > 0) {
+          console.log(`📊 Using ${data.length} customers from database`);
+          setCustomers(data);
+        } else if (isMounted) {
+          console.log("📊 No customers in database, keeping mock data");
+        }
       })
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        console.error("❌ Failed to load customers:", e.message);
+        if (isMounted) {
+          setError(e.message);
+          console.log("📊 Keeping mock data due to error");
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          console.log("✅ Background load complete");
+        }
+      });
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Enable realtime updates
@@ -35,10 +58,20 @@ export default function Customers({ currency }) {
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  const filtered = customers.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.city && c.city.toLowerCase().includes(search.toLowerCase()))
-  );
+  // Normalize customer data to handle both camelCase and snake_case fields
+  const normalizeCustomer = (c) => ({
+    ...c,
+    contact_person: c.contact_person || c.contact || c.contactPerson || "—",
+    total_invoiced: c.total_invoiced || c.totalInvoiced || c.total_invoiced || 0,
+    created_at: c.created_at || c.createdAt || c.lastInvoice || null
+  });
+
+  const filtered = customers
+    .map(normalizeCustomer)
+    .filter((c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.city && c.city.toLowerCase().includes(search.toLowerCase()))
+    );
 
   const handleAdd = async () => {
     if (!form.name.trim()) {
@@ -92,8 +125,21 @@ export default function Customers({ currency }) {
         ))}
       </div>
 
-      {filtered.length === 0 && (
-        <div style={{ padding:60, textAlign:"center", color:"#6B6455", fontSize:14 }}>No customers found</div>
+      {/* Debug info */}
+      {customers.length === 0 && !loading && (
+        <div style={{ padding: 20, textAlign: "center", color: "#6B6455" }}>
+          No customers loaded. Total: {customers.length}, Loading: {loading}
+        </div>
+      )}
+
+      {filtered.length === 0 && search === "" && customers.length > 0 && (
+        <div style={{ padding:60, textAlign:"center", color:"#6B6455", fontSize:14 }}>
+          Customers array has {customers.length} items but none are displaying. Check console for details.
+        </div>
+      )}
+
+      {filtered.length === 0 && search !== "" && (
+        <div style={{ padding:60, textAlign:"center", color:"#6B6455", fontSize:14 }}>No customers found matching "{search}"</div>
       )}
 
       {/* ── Customer detail modal ── */}
@@ -115,6 +161,23 @@ export default function Customers({ currency }) {
 
 // ── Customer Card ─────────────────────────────────────────────────────────────
 function CustomerCard({ customer: c, sym, onClick }) {
+  if (!c) {
+    console.warn("CustomerCard received null/undefined customer");
+    return null;
+  }
+  
+  // Debug logging
+  console.log("Rendering customer card:", c.name, "with ID:", c.id);
+  
+  // Ensure normalized fields with safe defaults
+  const contactPerson = c?.contact_person || c?.contact || c?.contactPerson || "—";
+  const totalInvoiced = c?.total_invoiced || c?.totalInvoiced || 0;
+  const createdAt = c?.created_at || c?.createdAt || c?.lastInvoice;
+  const name = c?.name || "Unknown";
+  const city = c?.city || "—";
+  const email = c?.email || "—";
+  const id = c?.id || 0;
+
   return (
     <div
       onClick={onClick}
@@ -124,10 +187,10 @@ function CustomerCard({ customer: c, sym, onClick }) {
     >
       {/* Header */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
-        <Avatar initials={makeInitials(c.name)} color={AVATAR_COLORS[c.id ? c.id.charCodeAt(0) % AVATAR_COLORS.length : 0]} size={42} />
+        <Avatar initials={makeInitials(name)} color={AVATAR_COLORS[id ? id.charCodeAt(0) % AVATAR_COLORS.length : 0]} size={42} />
         <div>
-          <div style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>{c.name}</div>
-          <div style={{ fontSize:12, color:"#6B6455" }}>{c.contact_person || "—"} · {c.city || "—"}</div>
+          <div style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>{name}</div>
+          <div style={{ fontSize:12, color:"#6B6455" }}>{contactPerson} · {city}</div>
         </div>
       </div>
 
@@ -135,15 +198,15 @@ function CustomerCard({ customer: c, sym, onClick }) {
       <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderTop:"1px solid #F0EDE4", borderBottom:"1px solid #F0EDE4", marginBottom:10 }}>
         <div>
           <div style={{ fontSize:10.5, color:"#6B6455", textTransform:"uppercase", letterSpacing:".6px" }}>Total Invoiced</div>
-          <div style={{ fontFamily:"Syne,sans-serif", fontSize:15, fontWeight:700, color:"#1A4A35", marginTop:2 }}>{fmt(c.total_invoiced || 0, sym)}</div>
+          <div style={{ fontFamily:"Syne,sans-serif", fontSize:15, fontWeight:700, color:"#1A4A35", marginTop:2 }}>{fmt(totalInvoiced, sym)}</div>
         </div>
         <div style={{ textAlign:"right" }}>
           <div style={{ fontSize:10.5, color:"#6B6455", textTransform:"uppercase", letterSpacing:".6px" }}>Created</div>
-          <div style={{ fontSize:12.5, marginTop:2 }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}</div>
+          <div style={{ fontSize:12.5, marginTop:2 }}>{createdAt ? new Date(createdAt).toLocaleDateString() : "—"}</div>
         </div>
       </div>
 
-      <div style={{ fontSize:12, color:"#6B6455" }}>📧 {c.email || "—"}</div>
+      <div style={{ fontSize:12, color:"#6B6455" }}>📧 {email}</div>
     </div>
   );
 }
@@ -151,6 +214,12 @@ function CustomerCard({ customer: c, sym, onClick }) {
 // ── Customer Detail Modal ─────────────────────────────────────────────────────
 function CustomerDetailModal({ customer: c, onClose, sym }) {
   if (!c) return null;
+  
+  // Normalize fields for display
+  const contactPerson = c.contact_person || c.contact || c.contactPerson || "—";
+  const totalInvoiced = c.total_invoiced || c.totalInvoiced || 0;
+  const phone = c.phone || c.phone_number || "—";
+  
   return (
     <Modal open title={c.name} onClose={onClose}>
       <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20 }}>
@@ -160,7 +229,12 @@ function CustomerDetailModal({ customer: c, onClose, sym }) {
           <div style={{ fontSize:13, color:"#6B6455" }}>{c.city || "—"}</div>
         </div>
       </div>
-      {[["Contact Person", c.contact_person || "—"], ["Email", c.email || "—"], ["Phone", c.phone || "—"], ["Total Invoiced", fmt(c.total_invoiced || 0, sym)]].map(([k, v]) => (
+      {[
+        ["Contact Person", contactPerson], 
+        ["Email", c.email || "—"], 
+        ["Phone", phone], 
+        ["Total Invoiced", fmt(totalInvoiced, sym)]
+      ].map(([k, v]) => (
         <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #F0EDE4" }}>
           <span style={{ fontSize:12.5, color:"#6B6455" }}>{k}</span>
           <span style={{ fontSize:13, fontWeight:500 }}>{v}</span>
