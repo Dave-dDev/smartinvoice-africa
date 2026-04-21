@@ -1,0 +1,3 @@
+## 2026-03-05 - Optimize multi-pass filtering and reducing in React components
+**Learning:** Found an anti-pattern in `src/pages/Invoices.jsx` where multiple `filter` and `reduce` operations were executed inline on every render (especially typing in the search bar). This causes O(N) operations per keystroke which leads to application lag.
+**Action:** When seeing multiple `.filter().reduce()` chains on the same array in a React component, use `useMemo` to combine them into a single-pass `reduce` that only recalculates when its dependencies explicitly change.
