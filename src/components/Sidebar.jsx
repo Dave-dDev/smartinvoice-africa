@@ -3,12 +3,13 @@
  */
 
 const NAV_ITEMS = [
-  { id: "dashboard", icon: "⬡", label: "Dashboard",  section: "Main"       },
-  { id: "invoices",  icon: "📄", label: "Invoices",   section: "Main", badge: 3 },
-  { id: "expenses",  icon: "💸", label: "Expenses",   section: "Main"       },
-  { id: "customers", icon: "👥", label: "Customers",  section: "Manage"     },
-  { id: "reports",   icon: "📊", label: "Reports",    section: "Manage"     },
-  { id: "vat",       icon: "🧾", label: "VAT & Taxes",section: "Compliance" },
+  { id: "dashboard",          icon: "⬡",  label: "Dashboard",          section: "Main"       },
+  { id: "invoices",           icon: "📄", label: "Invoices",            section: "Main", badge: 3 },
+  { id: "expenses",           icon: "💸", label: "Expenses",            section: "Main"       },
+  { id: "customers",          icon: "👥", label: "Customers",           section: "Manage"     },
+  { id: "reports",            icon: "📊", label: "Reports",             section: "Manage"     },
+  { id: "vat",                icon: "🧾", label: "VAT & Taxes",         section: "Compliance" },
+  { id: "financial-analysis", icon: "📂", label: "Financial Analysis",  section: "Insights"   },
 ];
 
 export default function Sidebar({ page, setPage, setSideOpen }) {
