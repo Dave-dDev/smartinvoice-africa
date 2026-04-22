@@ -1,22 +1,26 @@
 /**
  * SmartInvoice Africa — Top Navigation Bar
+ * Enhanced with live notification panel.
  */
 
+import NotificationPanel from "./NotificationPanel.jsx";
+
 const PAGE_TITLES = {
-  dashboard: "Dashboard",
-  invoices:  "Invoices",
-  expenses:  "Expenses",
-  customers: "Customers",
-  reports:   "Reports",
-  vat:       "VAT & Taxes",
+  dashboard:          "Dashboard",
+  invoices:           "Invoices",
+  expenses:           "Expenses",
+  customers:          "Customers",
+  reports:            "Reports",
+  vat:                "VAT & Taxes",
+  "financial-analysis": "Financial Analysis",
 };
 
-export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
+export default function Topbar({ page, setSideOpen, currency, setCurrency, invoices = [] }) {
   return (
     <header
       style={{
-        background: "#FDFAF4",
-        borderBottom: "1px solid #E2DAC8",
+        background: "#1A4A35",
+        borderBottom: "1px solid rgba(255,255,255,.08)",
         padding: "0 28px",
         height: 60,
         display: "flex",
@@ -38,6 +42,7 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
             fontSize: 20,
             cursor: "pointer",
             lineHeight: 1,
+            color: "#fff",
           }}
           className="hamburger"
           aria-label="Open menu"
@@ -47,8 +52,9 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
         <span
           style={{
             fontFamily: "Syne, sans-serif",
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: 700,
+            color: "#fff",
           }}
         >
           {PAGE_TITLES[page] || "SmartInvoice"}
@@ -56,13 +62,13 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
       </div>
 
       {/* Right: currency toggle + notifications + user */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {/* Currency toggle */}
         <div
           style={{
             display: "flex",
-            background: "#F5F0E8",
-            border: "1px solid #E2DAC8",
+            background: "rgba(255,255,255,.08)",
+            border: "1px solid rgba(255,255,255,.15)",
             borderRadius: 8,
             overflow: "hidden",
             fontSize: 12,
@@ -76,8 +82,8 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
                 padding: "5px 10px",
                 cursor: "pointer",
                 fontWeight: 500,
-                background: currency === c ? "#1A4A35" : "transparent",
-                color: currency === c ? "#fff" : "#6B6455",
+                background: currency === c ? "rgba(232,160,32,.9)" : "transparent",
+                color: currency === c ? "#0D0D0D" : "rgba(255,255,255,.7)",
                 transition: "all .15s",
               }}
             >
@@ -86,39 +92,8 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
           ))}
         </div>
 
-        {/* Notification bell */}
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            border: "1px solid #E2DAC8",
-            borderRadius: 8,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            background: "#F5F0E8",
-            fontSize: 14,
-            position: "relative",
-            transition: "background .2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#E2DAC8")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#F5F0E8")}
-        >
-          🔔
-          <div
-            style={{
-              position: "absolute",
-              top: 7,
-              right: 7,
-              width: 7,
-              height: 7,
-              background: "#C4522A",
-              borderRadius: "50%",
-              border: "1.5px solid #FDFAF4",
-            }}
-          />
-        </div>
+        {/* Live Notification Bell */}
+        <NotificationPanel invoices={invoices} />
 
         {/* User chip */}
         <div
@@ -129,18 +104,18 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
             cursor: "pointer",
             padding: "5px 10px 5px 5px",
             borderRadius: 10,
-            border: "1px solid #E2DAC8",
-            background: "#F5F0E8",
+            border: "1px solid rgba(255,255,255,.15)",
+            background: "rgba(255,255,255,.08)",
             transition: "background .2s",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#E2DAC8")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#F5F0E8")}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,.15)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,.08)")}
         >
           <div
             style={{
               width: 26,
               height: 26,
-              background: "linear-gradient(135deg,#1A4A35,#2A6B4F)",
+              background: "linear-gradient(135deg,#E8A020,#C4522A)",
               borderRadius: 6,
               display: "flex",
               alignItems: "center",
@@ -152,7 +127,7 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency }) {
           >
             AO
           </div>
-          <span style={{ fontSize: 12.5, fontWeight: 500 }}>Adeola O.</span>
+          <span style={{ fontSize: 12.5, fontWeight: 500, color: "#fff" }}>Adeola O.</span>
         </div>
       </div>
     </header>

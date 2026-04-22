@@ -1,6 +1,6 @@
 /**
  * SmartInvoice Africa — Dashboard Page
- * Enhanced with statistical analysis
+ * Enhanced with statistical analysis, health score, and sparklines
  */
 
 import { Avatar, Badge, Btn, Panel, PanelHeader, StatCard, RealtimeStatus } from "../components/UI.jsx";
@@ -8,6 +8,9 @@ import { ACTIVITY, fmt, currencySymbol, MONTHLY_REVENUE, MONTHLY_EXPENSES } from
 import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
 import { useStatisticalAnalysis } from "../hooks/useStatisticalAnalysis.js";
 import { descriptiveStats, growthRate, analyzeTrend } from "../lib/statistics.js";
+import { Sparkline } from "../components/MiniChart.jsx";
+import { computeHealthScore } from "../lib/healthScore.js";
+import { getDueDateStatus } from "../hooks/useDueDateStatus.js";
 
 export default function Dashboard({ setPage, currency, invoices, setInvoices, expenses = [] }) {
   const sym         = currencySymbol(currency);
@@ -21,6 +24,8 @@ export default function Dashboard({ setPage, currency, invoices, setInvoices, ex
   // Enable realtime updates if setInvoices is provided
   const realtime = setInvoices ? useRealtimeInvoices(setInvoices) : { connectionStatus: "SUBSCRIBED", lastUpdate: null, updateCount: 0 };
 
+  const health = computeHealthScore({ invoices, expenses, monthlyRevenue: MONTHLY_REVENUE, monthlyExpenses: MONTHLY_EXPENSES });
+
   return (
     <div className="page-content">
       {/* ── Hero strip ── */}
@@ -31,6 +36,9 @@ export default function Dashboard({ setPage, currency, invoices, setInvoices, ex
         setPage={setPage}
         realtime={realtime}
       />
+
+      {/* ── Business Health Score ── */}
+      <HealthScorePanel health={health} sym={sym} />
 
       {/* ── Metric cards ── */}
       <div className="grid-4" style={{ marginBottom: 22 }}>
@@ -115,7 +123,7 @@ function HeroStrip({ sym, receivables, invoices, setPage, realtime }) {
         <div style={{ fontFamily:"Syne,sans-serif", fontSize:21, fontWeight:700, color:"#fff", marginBottom:12 }}>
           Adejumo Aderinsola 👋
         </div>
-        <div style={{ display:"flex", gap:22, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ display:"flex", gap:22, flexWrap:"wrap", alignItems:"center", marginBottom: 16 }}>
           {[
             { val: fmt(receivables, sym),                                               label: "Outstanding receivables" },
             { val: `${invoices.filter((i) => i.status !== "paid").length} invoices`,    label: "Awaiting payment"        },
@@ -129,6 +137,11 @@ function HeroStrip({ sym, receivables, invoices, setPage, realtime }) {
               </div>
             </div>
           ))}
+        </div>
+        {/* Revenue Sparkline */}
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:10, color:"rgba(255,255,255,.4)", textTransform:"uppercase", letterSpacing:1 }}>7-Month Revenue</span>
+          <Sparkline data={MONTHLY_REVENUE} color="#E8A020" height={32} width={110} filled />
         </div>
       </div>
 
@@ -215,14 +228,18 @@ function CashFlowPanel({ sym, receivables, invoices, setPage }) {
         {/* Top debtors */}
         <div style={{ marginTop:16 }}>
           <div style={{ fontSize:10, textTransform:"uppercase", letterSpacing:1, color:"#6B6455", marginBottom:9 }}>Top Debtors</div>
-          {invoices.filter((i) => i.status !== "paid").slice(0, 3).map((inv, idx) => (
-            <div key={inv.id} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 0", borderBottom:"1px solid #F0EDE4" }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background: idx===0 ? "#C4522A" : idx===1 ? "#E8A020" : "#1A7A50", flexShrink:0 }} />
-              <span style={{ fontSize:12.5, flex:1 }}>{inv.client}</span>
-              <span style={{ fontSize:11, color:"#6B6455" }}>{inv.due}</span>
-              <span style={{ fontFamily:"Syne,sans-serif", fontSize:12.5, fontWeight:700, color: idx===0 ? "#C4522A" : idx===1 ? "#E8A020" : "#1A7A50" }}>{fmt(inv.amount, sym)}</span>
-            </div>
-          ))}
+          {invoices.filter((i) => i.status !== "paid").slice(0, 3).map((inv, idx) => {
+            const dueDate = inv.due_date || inv.due;
+            const ds = getDueDateStatus(dueDate, inv.status);
+            return (
+              <div key={inv.id} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 0", borderBottom:"1px solid #F0EDE4" }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background: idx===0 ? "#C4522A" : idx===1 ? "#E8A020" : "#1A7A50", flexShrink:0 }} />
+                <span style={{ fontSize:12.5, flex:1 }}>{inv.customer_name || inv.client}</span>
+                <span style={{ fontSize:10, padding:"2px 7px", borderRadius:6, background:ds.bg, color:ds.color, fontWeight:600 }}>{ds.label}</span>
+                <span style={{ fontFamily:"Syne,sans-serif", fontSize:12.5, fontWeight:700, color: idx===0 ? "#C4522A" : idx===1 ? "#E8A020" : "#1A7A50" }}>{fmt(inv.total || inv.amount, sym)}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </Panel>
@@ -258,7 +275,110 @@ function ActivityPanel() {
   );
 }
 
-// ── Statistical Insights Panel ───────────────────────────────────────────────
+// ── Business Health Score Panel ────────────────────────────────────────────────
+function HealthScorePanel({ health, sym }) {
+  const { score, grade, gradeColor, gradeBg, factors, actions } = health;
+
+  // SVG arc gauge
+  const radius = 44;
+  const circ = 2 * Math.PI * radius;
+  const progress = (score / 100) * circ;
+  const scoreColor = score >= 80 ? "#1A7A50" : score >= 60 ? "#E8A020" : "#C4522A";
+
+  return (
+    <Panel style={{ marginBottom: 22 }}>
+      <div style={{ padding: "18px 22px 20px" }}>
+        <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+
+          {/* Gauge */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "#6B6455", marginBottom: 8 }}>
+              Business Health
+            </div>
+            <svg width={110} height={80} viewBox="0 0 110 80">
+              {/* Background arc */}
+              <circle cx={55} cy={60} r={radius} fill="none" stroke="#E2DAC8" strokeWidth={10}
+                strokeDasharray={`${circ * 0.75} ${circ * 0.25}`}
+                strokeDashoffset={circ * 0.375}
+                strokeLinecap="round"
+              />
+              {/* Foreground arc */}
+              <circle cx={55} cy={60} r={radius} fill="none" stroke={scoreColor} strokeWidth={10}
+                strokeDasharray={`${progress * 0.75} ${circ - progress * 0.75}`}
+                strokeDashoffset={circ * 0.375}
+                strokeLinecap="round"
+                style={{ transition: "stroke-dasharray .8s ease" }}
+              />
+              {/* Score text */}
+              <text x={55} y={55} textAnchor="middle" fill={scoreColor}
+                fontSize={24} fontWeight={800} fontFamily="Syne, sans-serif">
+                {score}
+              </text>
+              <text x={55} y={68} textAnchor="middle" fill="#6B6455" fontSize={10}>
+                /100
+              </text>
+            </svg>
+            <span style={{
+              fontFamily: "Syne,sans-serif", fontSize: 20, fontWeight: 800,
+              background: gradeBg, color: gradeColor,
+              padding: "2px 12px", borderRadius: 8, marginTop: 4,
+            }}>
+              Grade {grade}
+            </span>
+          </div>
+
+          {/* Factor bars */}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "#6B6455", marginBottom: 10 }}>
+              Score Breakdown
+            </div>
+            {factors.map((f) => {
+              const pct = (f.score / f.max) * 100;
+              const barColor = f.status === "good" ? "#1A7A50" : f.status === "warning" ? "#E8A020" : "#C4522A";
+              return (
+                <div key={f.name} style={{ marginBottom: 9 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                    <span style={{ fontSize: 11.5, color: "#1A4A35" }}>{f.name}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>
+                      {f.score}/{f.max} · {f.value}
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: "#E2DAC8", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", width: `${pct}%`, background: barColor,
+                      borderRadius: 3, transition: "width .6s ease",
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Priority actions */}
+          {actions.length > 0 && (
+            <div style={{ minWidth: 200, maxWidth: 260 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "#6B6455", marginBottom: 10 }}>
+                🎯 Priority Actions
+              </div>
+              {actions.map((action, i) => (
+                <div key={i} style={{
+                  padding: "9px 12px", borderRadius: 8, marginBottom: 8,
+                  background: i === 0 ? "#FAE0D5" : "#FFF4D6",
+                  border: `1px solid ${i === 0 ? "#F5C4B0" : "#F5E0A0"}`,
+                  fontSize: 11.5, color: "#1A4A35", lineHeight: 1.5,
+                }}>
+                  {i === 0 ? "🔴" : i === 1 ? "🟡" : "🟢"} {action}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+
 function StatisticalInsightsPanel({ sym, stats, invoices, expenses }) {
   const { invoiceAnalysis, expenseAnalysis, revenueTrend, expenseTrend, profitability, correlationAnalysis } = stats;
   

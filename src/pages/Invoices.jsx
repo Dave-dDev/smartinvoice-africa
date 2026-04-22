@@ -7,6 +7,8 @@ import { Avatar, Badge, Btn, Panel, Modal, Input, Select, RealtimeStatus } from 
 import { fmt, currencySymbol, makeInitials, AVATAR_COLORS } from "../data/mockData.js";
 import { fetchInvoices, createInvoice, updateInvoiceStatus, deleteInvoice } from "../services/invoiceService.js";
 import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
+import { getDueDateStatus } from "../hooks/useDueDateStatus.js";
+import { exportInvoicesCsv } from "../lib/csvExport.js";
 
 export default function Invoices({ invoices: initialInvoices, setInvoices: setInitialInvoices, currency }) {
   const sym = currencySymbol(currency);
@@ -18,6 +20,8 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [exportMsg, setExportMsg] = useState(null);
 
   // Load invoices on mount
   useEffect(() => {
@@ -49,6 +53,29 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
     }
   };
 
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((i) => i.id)));
+    }
+  };
+
+  const handleBulkExport = () => {
+    const rows = filtered.filter((i) => selectedIds.has(i.id));
+    const filename = exportInvoicesCsv(rows.length ? rows : filtered, filter, sym);
+    setExportMsg(`✅ ${filename}`);
+    setTimeout(() => setExportMsg(null), 3000);
+  };
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: "center" }}>Loading invoices…</div>;
   }
@@ -68,13 +95,24 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
             placeholder="🔍 Search invoices…"
             style={{ padding:"8px 14px", border:"1.5px solid #E2DAC8", borderRadius:9, fontSize:13, background:"#FDFAF4", width:220, fontFamily:"DM Sans,sans-serif", outline:"none" }}
           />
-          <StatusFilter active={filter} onChange={setFilter} />
+          <StatusFilter active={filter} onChange={(f) => { setFilter(f); setSelectedIds(new Set()); }} />
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {exportMsg && <span style={{ fontSize:11, color:"#1A6A40", fontWeight:600 }}>{exportMsg}</span>}
           <RealtimeStatus connectionStatus={realtime.connectionStatus} lastUpdate={realtime.lastUpdate} updateCount={realtime.updateCount} />
+          <Btn variant="ghost" onClick={handleBulkExport} title="Export to CSV">⬇ CSV</Btn>
           <Btn variant="gold" onClick={() => setShowCreate(true)}>＋ New Invoice</Btn>
         </div>
       </div>
+
+      {/* ── Bulk action bar ── */}
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          onExport={handleBulkExport}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      )}
 
       {/* ── Summary cards ── */}
       <div className="grid-4" style={{ marginBottom:20 }}>
@@ -96,32 +134,65 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
         <table className="data-table">
           <thead>
             <tr>
+              <th style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onChange={toggleAll}
+                  style={{ cursor: "pointer", accentColor: "#1A4A35" }}
+                />
+              </th>
               {["Invoice","Client","Amount","Due Date","Status","Actions"].map((h) => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((inv) => (
-              <tr key={inv.id} onClick={() => setSelected(inv)}>
-                <td style={{ fontSize:13, fontWeight:600, color:"#1A4A35" }}>{inv.invoice_number}</td>
-                <td>
-                  <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                    <Avatar initials={makeInitials(inv.customer_name)} color={AVATAR_COLORS[filtered.indexOf(inv) % AVATAR_COLORS.length]} size={30} />
-                    <span style={{ fontSize:13, fontWeight:500 }}>{inv.customer_name}</span>
-                  </div>
-                </td>
-                <td style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>{fmt(inv.total, sym)}</td>
-                <td style={{ fontSize:12.5, color:"#6B6455" }}>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</td>
-                <td><Badge status={inv.status} /></td>
-                <td>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <Btn variant="ghost" small onClick={(e) => e.stopPropagation()}>📤</Btn>
-                    <Btn variant="ghost" small onClick={(e) => e.stopPropagation()}>💬</Btn>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((inv) => {
+              const ds = getDueDateStatus(inv.due_date || inv.due, inv.status);
+              const isChecked = selectedIds.has(inv.id);
+              return (
+                <tr
+                  key={inv.id}
+                  onClick={() => setSelected(inv)}
+                  style={{ background: isChecked ? "#F0F7F4" : undefined }}
+                >
+                  <td onClick={(e) => { e.stopPropagation(); toggleSelect(inv.id); }}>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleSelect(inv.id)}
+                      style={{ cursor: "pointer", accentColor: "#1A4A35" }}
+                    />
+                  </td>
+                  <td style={{ fontSize:13, fontWeight:600, color:"#1A4A35" }}>{inv.invoice_number}</td>
+                  <td>
+                    <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                      <Avatar initials={makeInitials(inv.customer_name)} color={AVATAR_COLORS[filtered.indexOf(inv) % AVATAR_COLORS.length]} size={30} />
+                      <span style={{ fontSize:13, fontWeight:500 }}>{inv.customer_name}</span>
+                    </div>
+                  </td>
+                  <td style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>{fmt(inv.total, sym)}</td>
+                  <td>
+                    <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                      <span style={{ fontSize:12, color:"#6B6455" }}>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</span>
+                      {inv.status !== "paid" && inv.due_date && (
+                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:6, background:ds.bg, color:ds.color, width:"fit-content" }}>
+                          {ds.label}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td><Badge status={inv.status} /></td>
+                  <td>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <Btn variant="ghost" small onClick={(e) => e.stopPropagation()}>📤</Btn>
+                      <Btn variant="ghost" small onClick={(e) => e.stopPropagation()}>💬</Btn>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {filtered.length === 0 && (
@@ -327,6 +398,50 @@ function Row({ label, val }) {
     <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:5 }}>
       <span style={{ color:"#6B6455" }}>{label}</span>
       <strong>{val}</strong>
+    </div>
+  );
+}
+
+// ── Bulk Action Bar ────────────────────────────────────────────────────────────
+function BulkActionBar({ count, onExport, onClear }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        background: "#1A4A35",
+        borderRadius: 10,
+        padding: "10px 18px",
+        marginBottom: 14,
+        animation: "slideDown .18s ease",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#F5C44A" }}>
+          {count} invoice{count !== 1 ? "s" : ""} selected
+        </span>
+        <button
+          onClick={onExport}
+          style={{
+            fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 7,
+            background: "#E8A020", color: "#0D0D0D", border: "none", cursor: "pointer",
+          }}
+        >
+          ⬇ Export CSV
+        </button>
+      </div>
+      <button
+        onClick={onClear}
+        style={{
+          background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.2)",
+          borderRadius: 7, padding: "5px 12px", fontSize: 12, color: "rgba(255,255,255,.8)",
+          cursor: "pointer",
+        }}
+      >
+        ✕ Clear selection
+      </button>
+      <style>{`@keyframes slideDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }`}</style>
     </div>
   );
 }

@@ -1,21 +1,13 @@
 /**
  * SmartInvoice Africa — Reports Page
- * Enhanced with comprehensive statistical analysis and financial statement upload
+ * Enhanced with interactive SVG charts, export, and invoice performance.
  */
 
 import { useState } from "react";
 import { Btn, Panel, PanelHeader } from "../components/UI.jsx";
-import FinancialStatementUpload from "../components/FinancialStatementUpload.jsx";
+import { BarChart } from "../components/MiniChart.jsx";
 import { MONTHLY_REVENUE, MONTHLY_EXPENSES, MONTHS, fmt, currencySymbol } from "../data/mockData.js";
-import { 
-  descriptiveStats, 
-  growthRate, 
-  analyzeTrend, 
-  movingAverage,
-  profitMargin,
-  detectOutliers,
-  periodComparison
-} from "../lib/statistics.js";
+import { exportInvoicesCsv } from "../lib/csvExport.js";
 
 const EXPORT_REPORTS = [
   { icon:"🧾", label:"VAT Remittance Report",  desc:"July 2025 · ₦930K due",      bg:"#FFF4D6" },
@@ -28,7 +20,14 @@ export default function Reports({ invoices, currency }) {
   const sym    = currencySymbol(currency);
   const totRev = MONTHLY_REVENUE.reduce((a, b)  => a + b, 0);
   const totExp = MONTHLY_EXPENSES.reduce((a, b) => a + b, 0);
-  const maxVal = Math.max(...MONTHLY_REVENUE);
+  const [showOverlay, setShowOverlay] = useState(true);
+  const [exportMsg, setExportMsg] = useState(null);
+
+  const handleExport = () => {
+    const filename = exportInvoicesCsv(invoices || [], "all", sym);
+    setExportMsg(`✅ Downloaded ${filename}`);
+    setTimeout(() => setExportMsg(null), 3000);
+  };
 
   return (
     <div className="page-content">
@@ -49,44 +48,51 @@ export default function Reports({ invoices, currency }) {
 
       {/* ── Charts row ── */}
       <div className="grid-2-wide" style={{ marginBottom:20 }}>
-        {/* Bar chart */}
+        {/* Interactive SVG Bar Chart */}
         <Panel>
-          <PanelHeader title="Revenue vs Expenses · 2025" />
-          <div style={{ padding:"24px 22px" }}>
-            {/* Legend */}
-            <div style={{ display:"flex", gap:16, marginBottom:18 }}>
-              {[["Revenue","#1A4A35"],["Expenses","#C4522A"]].map(([l, c]) => (
-                <div key={l} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ width:12, height:12, borderRadius:3, background:c }} />
-                  <span style={{ fontSize:12, color:"#6B6455" }}>{l}</span>
+          <div style={{ padding:"16px 22px 8px", borderBottom:"1px solid #E2DAC8", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <span style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>
+              Revenue vs Expenses · 2025
+            </span>
+            <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+              {/* Legend */}
+              {[["Revenue","#1A4A35"],["Expenses","#C4522A"],["Profit","#E8A020"]].map(([l, c]) => (
+                <div key={l} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <div style={{ width:10, height:10, borderRadius:3, background:c }} />
+                  <span style={{ fontSize:11, color:"#6B6455" }}>{l}</span>
                 </div>
               ))}
+              <button
+                onClick={() => setShowOverlay(v => !v)}
+                style={{ fontSize:10, padding:"3px 8px", borderRadius:6, border:"1px solid #E2DAC8", background: showOverlay ? "#1A4A35" : "#F5F0E8", color: showOverlay ? "#fff" : "#6B6455", cursor:"pointer" }}
+              >
+                {showOverlay ? "Profit ✓" : "Profit"}
+              </button>
             </div>
-
-            {/* Bars */}
-            <div style={{ display:"flex", alignItems:"flex-end", gap:10, height:180 }}>
-              {MONTHS.map((m, i) => (
-                <div key={m} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                  <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:148 }}>
-                    <div
-                      title={`Revenue: ${fmt(MONTHLY_REVENUE[i], sym)}`}
-                      style={{ width:18, background:"#1A4A35", borderRadius:"4px 4px 0 0", height:`${(MONTHLY_REVENUE[i]/maxVal)*100}%`, transition:"height .5s ease", minHeight:4, cursor:"pointer" }}
-                    />
-                    <div
-                      title={`Expenses: ${fmt(MONTHLY_EXPENSES[i], sym)}`}
-                      style={{ width:18, background:"#C4522A", borderRadius:"4px 4px 0 0", height:`${(MONTHLY_EXPENSES[i]/maxVal)*100}%`, transition:"height .5s ease", minHeight:4, cursor:"pointer" }}
-                    />
-                  </div>
-                  <span style={{ fontSize:10.5, color:"#6B6455" }}>{m}</span>
-                </div>
-              ))}
-            </div>
+          </div>
+          <div style={{ padding:"20px 22px 16px" }}>
+            <BarChart
+              revenueData={MONTHLY_REVENUE}
+              expenseData={MONTHLY_EXPENSES}
+              labels={MONTHS}
+              height={200}
+              sym={sym}
+              showOverlay={showOverlay}
+            />
 
             {/* Monthly surplus */}
-            <div style={{ marginTop:20, padding:"12px 14px", background:"#F5F0E8", borderRadius:10 }}>
-              <div style={{ fontSize:11, color:"#6B6455", marginBottom:6 }}>July surplus</div>
-              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#1A4A35" }}>
-                {fmt(MONTHLY_REVENUE[6] - MONTHLY_EXPENSES[6], sym)}
+            <div style={{ marginTop:16, padding:"12px 14px", background:"#F5F0E8", borderRadius:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontSize:11, color:"#6B6455" }}>July surplus</div>
+                <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#1A4A35" }}>
+                  {fmt(MONTHLY_REVENUE[6] - MONTHLY_EXPENSES[6], sym)}
+                </div>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontSize:11, color:"#6B6455" }}>Best month</div>
+                <div style={{ fontFamily:"Syne,sans-serif", fontSize:16, fontWeight:700, color:"#E8A020" }}>
+                  {MONTHS[MONTHLY_REVENUE.indexOf(Math.max(...MONTHLY_REVENUE))]}
+                </div>
               </div>
             </div>
           </div>
@@ -94,12 +100,17 @@ export default function Reports({ invoices, currency }) {
 
         {/* Export reports */}
         <Panel>
-          <PanelHeader title="Export Reports" />
+          <div style={{ padding:"16px 22px", borderBottom:"1px solid #E2DAC8", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>Export Reports</span>
+            {exportMsg && (
+              <span style={{ fontSize:11, color:"#1A6A40", fontWeight:600 }}>{exportMsg}</span>
+            )}
+          </div>
           <div style={{ padding:"18px 20px" }}>
             {EXPORT_REPORTS.map((r, i) => (
               <div
                 key={i}
-                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom: i < EXPORT_REPORTS.length - 1 ? "1px solid #F0EDE4" : "none", cursor:"pointer", transition:"background .15s", borderRadius:8, paddingLeft:6 }}
+                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom: i < EXPORT_REPORTS.length - 1 ? "1px solid #F0EDE4" : "none", cursor:"pointer", borderRadius:8, paddingLeft:6 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "#F9F6EF")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "")}
               >
@@ -113,6 +124,15 @@ export default function Reports({ invoices, currency }) {
                 <Btn variant="ghost" small>⬇ PDF</Btn>
               </div>
             ))}
+
+            {/* Invoice CSV Export */}
+            <div style={{ marginTop:14, padding:"13px 14px", background:"#F0F7F4", borderRadius:10, border:"1px solid #D4EDE3", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontSize:12.5, fontWeight:600, color:"#1A4A35" }}>📥 Export Invoices (CSV)</div>
+                <div style={{ fontSize:11, color:"#6B6455", marginTop:2 }}>{(invoices || []).length} invoices · all statuses</div>
+              </div>
+              <Btn variant="forest" small onClick={handleExport}>⬇ Download</Btn>
+            </div>
           </div>
         </Panel>
       </div>
@@ -125,7 +145,7 @@ export default function Reports({ invoices, currency }) {
             { label:"Avg Payment Time", val:"9 days",  sub:"↓ from 45 days",   icon:"⚡", color:"#1A4A35" },
             { label:"On-time Rate",     val:"74%",      sub:"+12% this month",  icon:"✅", color:"#1A7A50" },
             { label:"Online Payments",  val:"94%",      sub:"vs 6% cash",       icon:"💳", color:"#4AACB8" },
-            { label:"Invoices Paid",    val:`${invoices.filter(i=>i.status==="paid").length}/${invoices.length}`, sub:"this month", icon:"📄", color:"#E8A020" },
+            { label:"Invoices Paid",    val:`${(invoices || []).filter(i=>i.status==="paid").length}/${(invoices||[]).length}`, sub:"this month", icon:"📄", color:"#E8A020" },
           ].map((s, i) => (
             <div key={i} style={{ padding:"16px 0", borderRight: i < 3 ? "1px solid #F0EDE4" : "none", paddingRight:16 }}>
               <div style={{ fontSize:20, marginBottom:8 }}>{s.icon}</div>
