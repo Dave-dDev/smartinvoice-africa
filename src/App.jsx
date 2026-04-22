@@ -14,6 +14,7 @@ import Invoices  from "./pages/Invoices.jsx";
 import Expenses  from "./pages/Expenses.jsx";
 import Customers from "./pages/Customers.jsx";
 import Reports   from "./pages/Reports.jsx";
+import Insights  from "./pages/Insights.jsx";
 import VATPage   from "./pages/VATPage.jsx";
 
 import { INVOICES_DATA } from "./data/mockData.js";
@@ -289,6 +290,7 @@ export default function App() {
       case "expenses":  return <Expenses  currency={currency} />;
       case "customers": return <Customers currency={currency} />;
       case "reports":   return <Reports   {...props} />;
+      case "insights":  return <Insights  currency={currency} />;
       case "vat":       return <VATPage   currency={currency} />;
       default:          return <Dashboard {...props} setInvoices={setInvoices} setPage={setPage} />;
     }
