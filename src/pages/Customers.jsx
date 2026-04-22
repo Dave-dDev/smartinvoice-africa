@@ -187,12 +187,16 @@ function CustomerCard({ customer: c, sym, onClick }) {
     >
       {/* Header */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
-        <Avatar initials={makeInitials(name)} color={AVATAR_COLORS[id ? id.charCodeAt(0) % AVATAR_COLORS.length : 0]} size={42} />
+        <Avatar initials={makeInitials(name)} color={AVATAR_COLORS[id ? (typeof id === 'number' ? id % AVATAR_COLORS.length : id.charCodeAt(0) % AVATAR_COLORS.length) : 0]} size={40} />
         <div>
-          <div style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>{name}</div>
-          <div style={{ fontSize:12, color:"#6B6455" }}>{contactPerson} · {city}</div>
+          <div style={{ fontFamily:"Syne,sans-serif", fontSize:15, fontWeight:600 }}>{name}</div>
+          <div style={{ fontSize:12.5, color:"#6B6455" }}>{city}</div>
         </div>
       </div>
+
+      {/* Info */}
+      <div style={{ fontSize:12, color:"#6B6455" }}>{contactPerson}</div>
+
 
       {/* Stats */}
       <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderTop:"1px solid #F0EDE4", borderBottom:"1px solid #F0EDE4", marginBottom:10 }}>
@@ -223,7 +227,7 @@ function CustomerDetailModal({ customer: c, onClose, sym }) {
   return (
     <Modal open title={c.name} onClose={onClose}>
       <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20 }}>
-        <Avatar initials={makeInitials(c.name)} color={AVATAR_COLORS[c.id ? c.id.charCodeAt(0) % AVATAR_COLORS.length : 0]} size={52} />
+        <Avatar initials={makeInitials(c.name)} color={AVATAR_COLORS[c.id ? (typeof c.id === 'number' ? c.id % AVATAR_COLORS.length : c.id.charCodeAt(0) % AVATAR_COLORS.length) : 0]} size={52} />
         <div>
           <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700 }}>{c.name}</div>
           <div style={{ fontSize:13, color:"#6B6455" }}>{c.city || "—"}</div>

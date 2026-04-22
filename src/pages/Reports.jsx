@@ -1,9 +1,21 @@
 /**
  * SmartInvoice Africa — Reports Page
+ * Enhanced with comprehensive statistical analysis and financial statement upload
  */
 
+import { useState } from "react";
 import { Btn, Panel, PanelHeader } from "../components/UI.jsx";
+import FinancialStatementUpload from "../components/FinancialStatementUpload.jsx";
 import { MONTHLY_REVENUE, MONTHLY_EXPENSES, MONTHS, fmt, currencySymbol } from "../data/mockData.js";
+import { 
+  descriptiveStats, 
+  growthRate, 
+  analyzeTrend, 
+  movingAverage,
+  profitMargin,
+  detectOutliers,
+  periodComparison
+} from "../lib/statistics.js";
 
 const EXPORT_REPORTS = [
   { icon:"🧾", label:"VAT Remittance Report",  desc:"July 2025 · ₦930K due",      bg:"#FFF4D6" },

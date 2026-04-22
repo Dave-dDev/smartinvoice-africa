@@ -1,17 +1,23 @@
 /**
  * SmartInvoice Africa — Dashboard Page
+ * Enhanced with statistical analysis
  */
 
 import { Avatar, Badge, Btn, Panel, PanelHeader, StatCard, RealtimeStatus } from "../components/UI.jsx";
-import { ACTIVITY, fmt, currencySymbol } from "../data/mockData.js";
+import { ACTIVITY, fmt, currencySymbol, MONTHLY_REVENUE, MONTHLY_EXPENSES } from "../data/mockData.js";
 import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
+import { useStatisticalAnalysis } from "../hooks/useStatisticalAnalysis.js";
+import { descriptiveStats, growthRate, analyzeTrend } from "../lib/statistics.js";
 
-export default function Dashboard({ setPage, currency, invoices, setInvoices }) {
+export default function Dashboard({ setPage, currency, invoices, setInvoices, expenses = [] }) {
   const sym         = currencySymbol(currency);
   const receivables = invoices.filter((i) => i.status !== "paid").reduce((a, b) => a + b.amount, 0);
   const paidAmt     = invoices.filter((i) => i.status === "paid").reduce((a, b) => a + b.amount, 0);
   const overdueCnt  = invoices.filter((i) => i.status === "overdue").length;
 
+  // Statistical analysis
+  const stats = useStatisticalAnalysis(invoices, expenses, MONTHLY_REVENUE, MONTHLY_EXPENSES);
+  
   // Enable realtime updates if setInvoices is provided
   const realtime = setInvoices ? useRealtimeInvoices(setInvoices) : { connectionStatus: "SUBSCRIBED", lastUpdate: null, updateCount: 0 };
 
@@ -28,10 +34,38 @@ export default function Dashboard({ setPage, currency, invoices, setInvoices }) 
 
       {/* ── Metric cards ── */}
       <div className="grid-4" style={{ marginBottom: 22 }}>
-        <StatCard icon="📥" label="Revenue · Jul"    value={fmt(paidAmt, sym)}     trend="▲ +23% vs last month"      trendColor="#1A7A50" accent="#E8A020" />
-        <StatCard icon="⏰" label="Overdue Invoices" value={fmt(invoices.filter(i=>i.status==="overdue").reduce((a,b)=>a+b.amount,0),sym)} trend={`▼ ${overdueCnt} overdue`} trendColor="#C4522A" accent="#C4522A" />
-        <StatCard icon="🧾" label="Total Expenses"   value={fmt(2930000, sym)}      trend="▲ +8% from budget"          trendColor="#C4522A" accent="#1A4A35" />
-        <StatCard icon="🏦" label="VAT Liability Q3" value={fmt(930000, sym)}       trend="Due Sep 21 · 7.5%"          trendColor="#4AACB8" accent="#4AACB8" />
+        <StatCard 
+          icon="📥" 
+          label="Revenue · Jul"    
+          value={fmt(paidAmt, sym)}     
+          trend={`▲ ${stats.revenueTrend.growth.toFixed(1)}% vs last month`}      
+          trendColor="#1A7A50" 
+          accent="#E8A020" 
+        />
+        <StatCard 
+          icon="⏰" 
+          label="Overdue Invoices" 
+          value={fmt(invoices.filter(i=>i.status==="overdue").reduce((a,b)=>a+b.amount,0),sym)} 
+          trend={`▼ ${overdueCnt} overdue (${stats.invoiceAnalysis.overdueRate.toFixed(1)}%)`} 
+          trendColor="#C4522A" 
+          accent="#C4522A" 
+        />
+        <StatCard 
+          icon="📊" 
+          label="Avg Invoice"   
+          value={fmt(stats.invoiceAnalysis.median, sym)}      
+          trend={`σ ${stats.invoiceAnalysis.stdDev.toLocaleString('en-NG', { maximumFractionDigits: 0 })} std dev`}          
+          trendColor="#4AACB8" 
+          accent="#1A4A35" 
+        />
+        <StatCard 
+          icon="💰" 
+          label="Net Profit · Jul" 
+          value={fmt(stats.profitability.monthlyProfits[6] || 0, sym)}       
+          trend={`${stats.profitability.margin.toFixed(1)}% margin`}          
+          trendColor="#1A7A50" 
+          accent="#1A7A50" 
+        />
       </div>
 
       {/* ── Two-column row ── */}
@@ -39,6 +73,14 @@ export default function Dashboard({ setPage, currency, invoices, setInvoices }) 
         <RecentInvoices sym={sym} invoices={invoices} setPage={setPage} overdueCnt={overdueCnt} />
         <CashFlowPanel sym={sym} receivables={receivables} invoices={invoices} setPage={setPage} />
       </div>
+
+      {/* ── Statistical Insights ── */}
+      <StatisticalInsightsPanel 
+        sym={sym} 
+        stats={stats} 
+        invoices={invoices}
+        expenses={expenses}
+      />
 
       {/* ── Activity feed ── */}
       <ActivityPanel />
@@ -211,6 +253,204 @@ function ActivityPanel() {
             </div>
           </div>
         ))}
+      </div>
+    </Panel>
+  );
+}
+
+// ── Statistical Insights Panel ───────────────────────────────────────────────
+function StatisticalInsightsPanel({ sym, stats, invoices, expenses }) {
+  const { invoiceAnalysis, expenseAnalysis, revenueTrend, expenseTrend, profitability, correlationAnalysis } = stats;
+  
+  return (
+    <Panel>
+      <PanelHeader title="📊 Statistical Insights" />
+      <div style={{ padding:"20px 22px" }}>
+        {/* Row 1: Invoice & Expense Stats */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:16 }}>
+          {/* Invoice Statistics */}
+          <div style={{ padding:16, background:"#F9F6EF", borderRadius:12 }}>
+            <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#6B6455", marginBottom:12 }}>📄 Invoice Analysis</div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Average Invoice</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#1A4A35" }}>
+                {fmt(invoiceAnalysis.mean, sym)}
+              </div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Median Invoice</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#1A7A50" }}>
+                {fmt(invoiceAnalysis.median, sym)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Collection Rate</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:invoiceAnalysis.collectionRatio > 0.7 ? "#1A7A50" : "#C4522A" }}>
+                {(invoiceAnalysis.collectionRatio * 100).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+
+          {/* Expense Statistics */}
+          <div style={{ padding:16, background:"#FFF4F0", borderRadius:12 }}>
+            <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#6B6455", marginBottom:12 }}>🧾 Expense Analysis</div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Average Expense</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#C4522A" }}>
+                {fmt(expenseAnalysis.mean, sym)}
+              </div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Highest Expense</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#C4522A" }}>
+                {fmt(expenseAnalysis.max, sym)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Expense Categories</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#1A4A35" }}>
+                {expenseAnalysis.byCategory.categoryCount} categories
+              </div>
+            </div>
+          </div>
+
+          {/* Profitability Stats */}
+          <div style={{ padding:16, background:"#F0F7F4", borderRadius:12 }}>
+            <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#6B6455", marginBottom:12 }}>💰 Profitability</div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Profit Margin</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:profitability.margin > 20 ? "#1A7A50" : profitability.margin > 10 ? "#E8A020" : "#C4522A" }}>
+                {profitability.margin.toFixed(1)}%
+              </div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Avg Monthly Profit</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:"#1A7A50" }}>
+                {fmt(profitability.averageMonthlyProfit, sym)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:"#6B6455" }}>Profit Trend</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700, color:profitability.profitTrend.direction === 'increasing' ? "#1A7A50" : "#C4522A" }}>
+                {profitability.profitTrend.direction === 'increasing' ? '📈' : profitability.profitTrend.direction === 'decreasing' ? '📉' : '➡️'} {profitability.profitTrend.strength.toFixed(1)}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Trend Analysis & Correlation */}
+        <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:16 }}>
+          {/* Trend Analysis */}
+          <div style={{ padding:16, background:"#F8F4F0", borderRadius:12 }}>
+            <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#6B6455", marginBottom:14 }}>📈 Trend Analysis</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
+              <div>
+                <div style={{ fontSize:12, fontWeight:600, color:"#1A4A35", marginBottom:8 }}>Revenue Trend</div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <span style={{ fontSize:16 }}>
+                    {revenueTrend.direction === 'increasing' ? '📈' : revenueTrend.direction === 'decreasing' ? '📉' : '➡️'}
+                  </span>
+                  <span style={{ fontSize:13, color:"#6B6455" }}>
+                    {revenueTrend.direction} at {revenueTrend.strength.toFixed(1)}%/period
+                  </span>
+                </div>
+                <div style={{ fontSize:11, color:"#6B6455" }}>
+                  3-period moving avg: {fmt(revenueTrend.movingAverage[revenueTrend.movingAverage.length - 1] || 0, sym)}
+                </div>
+              </div>
+              
+              <div>
+                <div style={{ fontSize:12, fontWeight:600, color:"#C4522A", marginBottom:8 }}>Expense Trend</div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <span style={{ fontSize:16 }}>
+                    {expenseTrend.direction === 'increasing' ? '📈' : expenseTrend.direction === 'decreasing' ? '📉' : '➡️'}
+                  </span>
+                  <span style={{ fontSize:13, color:"#6B6455" }}>
+                    {expenseTrend.direction} at {expenseTrend.strength.toFixed(1)}%/period
+                  </span>
+                </div>
+                <div style={{ fontSize:11, color:"#6B6455" }}>
+                  3-period moving avg: {fmt(expenseTrend.movingAverage[expenseTrend.movingAverage.length - 1] || 0, sym)}
+                </div>
+              </div>
+            </div>
+
+            {/* Growth comparison */}
+            <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid #E8E0D0" }}>
+              <div style={{ fontSize:11, color:"#6B6455", marginBottom:8 }}>Month-over-Month Growth</div>
+              <div style={{ display:"flex", gap:20 }}>
+                <div>
+                  <span style={{ fontSize:11, color:"#1A4A35" }}>Revenue: </span>
+                  <span style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700, color:revenueTrend.growth > 0 ? "#1A7A50" : "#C4522A" }}>
+                    {revenueTrend.growth > 0 ? '▲' : '▼'} {Math.abs(revenueTrend.growth).toFixed(1)}%
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize:11, color:"#C4522A" }}>Expenses: </span>
+                  <span style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700, color:expenseTrend.growth > 0 ? "#C4522A" : "#1A7A50" }}>
+                    {expenseTrend.growth > 0 ? '▲' : '▼'} {Math.abs(expenseTrend.growth).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Correlation & Distribution */}
+          <div style={{ padding:16, background:"#F4F0F8", borderRadius:12 }}>
+            <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#6B6455", marginBottom:14 }}>🔗 Correlation</div>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:11, color:"#6B6455", marginBottom:6 }}>Revenue vs Expenses</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:24, fontWeight:800, color:Math.abs(correlationAnalysis.coefficient) > 0.7 ? "#1A4A35" : "#5A3A8A" }}>
+                {correlationAnalysis.coefficient.toFixed(3)}
+              </div>
+              <div style={{ fontSize:11, color:"#6B6455", marginTop:4 }}>
+                {correlationAnalysis.strength} {correlationAnalysis.relationship} correlation
+              </div>
+            </div>
+
+            {/* Top expense categories */}
+            <div>
+              <div style={{ fontSize:11, color:"#6B6455", marginBottom:8 }}>Top Expense Categories</div>
+              {Object.entries(expenseAnalysis.byCategory.distribution)
+                .sort((a, b) => b[1].total - a[1].total)
+                .slice(0, 3)
+                .map(([cat, data], idx) => (
+                  <div key={cat} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background: idx === 0 ? "#C4522A" : idx === 1 ? "#E8A020" : "#4AACB8" }} />
+                    <span style={{ fontSize:11, flex:1, color:"#6B6455" }}>{cat}</span>
+                    <span style={{ fontSize:11, fontWeight:600, color:"#1A4A35" }}>{data.percentage.toFixed(1)}%</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Variability Metrics */}
+        <div style={{ marginTop:16, padding:"14px 16px", background:"#F0F4F8", borderRadius:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ display:"flex", gap:24 }}>
+            <div>
+              <div style={{ fontSize:10, color:"#6B6455", textTransform:"uppercase" }}>Revenue Std Dev</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:16, fontWeight:700, color:"#1A4A35" }}>
+                {fmt(stats.revenueTrend.stdDev || 0, sym)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, color:"#6B6455", textTransform:"uppercase" }}>Expense Variability</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:16, fontWeight:700, color:"#C4522A" }}>
+                {fmt(expenseAnalysis.stdDev, sym)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, color:"#6B6455", textTransform:"uppercase" }}>Invoice Range</div>
+              <div style={{ fontFamily:"Syne,sans-serif", fontSize:16, fontWeight:700, color:"#5A3A8A" }}>
+                {fmt(invoiceAnalysis.min, sym)} - {fmt(invoiceAnalysis.max, sym)}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize:11, color:"#6B6455", fontStyle:"italic" }}>
+            σ Measures volatility and risk
+          </div>
+        </div>
       </div>
     </Panel>
   );
