@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { id: "expenses",  icon: "💸", label: "Expenses",   section: "Main"       },
   { id: "customers", icon: "👥", label: "Customers",  section: "Manage"     },
   { id: "reports",   icon: "📊", label: "Reports",    section: "Manage"     },
+  { id: "insights",  icon: "💡", label: "Insights",   section: "Manage"     },
   { id: "vat",       icon: "🧾", label: "VAT & Taxes",section: "Compliance" },
 ];
 
