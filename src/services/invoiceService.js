@@ -77,3 +77,26 @@ export async function deleteInvoice(invoiceId) {
   const { error } = await supabase.from("invoices").delete().eq("id", invoiceId);
   if (error) throw error;
 }
+
+export async function updateInvoice(invoiceId, { customerName, customerEmail, dueDate, items, vatRate, notes, currency }) {
+  const subtotal  = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+  const vatAmount = subtotal * (vatRate / 100);
+  const total     = subtotal + vatAmount;
+
+  const { data: invoice, error } = await supabase
+    .from("invoices")
+    .update({ customer_name: customerName, customer_email: customerEmail, due_date: dueDate, subtotal, vat_rate: vatRate, vat_amount: vatAmount, total, currency, notes })
+    .eq("id", invoiceId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Replace line items
+  await supabase.from("invoice_items").delete().eq("invoice_id", invoiceId);
+  const lineItems = items.map((item) => ({ invoice_id: invoiceId, description: item.description, quantity: item.quantity, unit_price: item.unit_price }));
+  const { error: itemsError } = await supabase.from("invoice_items").insert(lineItems);
+  if (itemsError) throw itemsError;
+
+  return invoice;
+}
