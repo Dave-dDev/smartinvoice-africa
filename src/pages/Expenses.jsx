@@ -4,9 +4,10 @@
 
 import { useState, useEffect } from "react";
 import { Btn, Panel, PanelHeader, Modal, Input, Select, RealtimeStatus } from "../components/UI.jsx";
-import { EXPENSES_DATA, EXP_COLORS, fmt, currencySymbol } from "../data/mockData.js";
+import { EXPENSES_DATA, EXP_COLORS, fmt, currencySymbol, MONTHLY_EXPENSES } from "../data/mockData.js";
 import { fetchExpenses, createExpense } from "../services/expenseService.js";
 import { useRealtimeExpenses } from "../hooks/useRealtimeExpenses.js";
+import { Sparkline } from "../components/MiniChart.jsx";
 
 export default function Expenses({ currency }) {
   const sym = currencySymbol(currency);
@@ -79,6 +80,21 @@ export default function Expenses({ currency }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <CategoryTabs active={filterCat} categories={categories} onChange={setFilterCat} />
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {/* MoM Spend Trend */}
+          {MONTHLY_EXPENSES.length >= 2 && (() => {
+            const prev = MONTHLY_EXPENSES[MONTHLY_EXPENSES.length - 2];
+            const curr = MONTHLY_EXPENSES[MONTHLY_EXPENSES.length - 1];
+            const pct  = prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : 0;
+            const up   = curr > prev;
+            return (
+              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 12px", background:"#FDFAF4", border:"1px solid #E2DAC8", borderRadius:9 }}>
+                <Sparkline data={MONTHLY_EXPENSES} color={up ? "#C4522A" : "#1A7A50"} height={24} width={70} />
+                <span style={{ fontSize:11.5, fontWeight:700, color: up ? "#C4522A" : "#1A7A50" }}>
+                  {up ? "▲" : "▼"} {Math.abs(pct)}% MoM
+                </span>
+              </div>
+            );
+          })()}
           <RealtimeStatus connectionStatus={realtime.connectionStatus} lastUpdate={realtime.lastUpdate} updateCount={realtime.updateCount} />
           <Btn variant="ghost">📸 Scan Receipt</Btn>
           <Btn variant="gold" onClick={() => setShowModal(true)}>＋ Add Expense</Btn>

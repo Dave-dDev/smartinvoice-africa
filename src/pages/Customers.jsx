@@ -8,7 +8,7 @@ import { CUSTOMERS_DATA, AVATAR_COLORS, fmt, currencySymbol, makeInitials } from
 import { fetchCustomers, createCustomer } from "../services/customerService.js";
 import { useRealtimeCustomers } from "../hooks/useRealtimeCustomers.js";
 
-export default function Customers({ currency }) {
+export default function Customers({ currency, invoices = [] }) {
   const sym = currencySymbol(currency);
 
   // Start with mock data immediately so page displays
@@ -143,7 +143,7 @@ export default function Customers({ currency }) {
       )}
 
       {/* ── Customer detail modal ── */}
-      <CustomerDetailModal customer={selected} onClose={() => setSelected(null)} sym={sym} />
+      <CustomerDetailModal customer={selected} onClose={() => setSelected(null)} sym={sym} invoices={invoices} />
 
       {/* ── Add customer modal ── */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Customer">
@@ -216,38 +216,81 @@ function CustomerCard({ customer: c, sym, onClick }) {
 }
 
 // ── Customer Detail Modal ─────────────────────────────────────────────────────
-function CustomerDetailModal({ customer: c, onClose, sym }) {
+function CustomerDetailModal({ customer: c, onClose, sym, invoices = [] }) {
+  const [tab, setTab] = useState("info");
   if (!c) return null;
-  
-  // Normalize fields for display
+
   const contactPerson = c.contact_person || c.contact || c.contactPerson || "—";
   const totalInvoiced = c.total_invoiced || c.totalInvoiced || 0;
   const phone = c.phone || c.phone_number || "—";
-  
+
+  // Filter invoices for this customer (match by name or id)
+  const custInvoices = invoices.filter((inv) =>
+    inv.customer_id === c.id || (inv.customer_name && inv.customer_name.toLowerCase() === (c.name || "").toLowerCase())
+  );
+
+  const TAB_STYLE = (active) => ({
+    padding: "7px 16px", fontSize: 12.5, cursor: "pointer", fontWeight: active ? 600 : 400,
+    background: active ? "#1A4A35" : "transparent", color: active ? "#fff" : "#6B6455",
+    borderRadius: 7, transition: "all .15s"
+  });
+
   return (
     <Modal open title={c.name} onClose={onClose}>
-      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20 }}>
+      {/* Avatar row */}
+      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
         <Avatar initials={makeInitials(c.name)} color={AVATAR_COLORS[c.id ? (typeof c.id === 'number' ? c.id % AVATAR_COLORS.length : c.id.charCodeAt(0) % AVATAR_COLORS.length) : 0]} size={52} />
         <div>
           <div style={{ fontFamily:"Syne,sans-serif", fontSize:18, fontWeight:700 }}>{c.name}</div>
           <div style={{ fontSize:13, color:"#6B6455" }}>{c.city || "—"}</div>
         </div>
       </div>
-      {[
-        ["Contact Person", contactPerson], 
-        ["Email", c.email || "—"], 
-        ["Phone", phone], 
-        ["Total Invoiced", fmt(totalInvoiced, sym)]
-      ].map(([k, v]) => (
-        <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #F0EDE4" }}>
-          <span style={{ fontSize:12.5, color:"#6B6455" }}>{k}</span>
-          <span style={{ fontSize:13, fontWeight:500 }}>{v}</span>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:6, marginBottom:16, background:"#F5F0E8", borderRadius:9, padding:4 }}>
+        <div style={TAB_STYLE(tab === "info")}    onClick={() => setTab("info")}>Info</div>
+        <div style={TAB_STYLE(tab === "invoices")} onClick={() => setTab("invoices")}>
+          Invoices {custInvoices.length > 0 && <span style={{ background:"#C4522A", color:"#fff", fontSize:10, borderRadius:20, padding:"1px 5px", marginLeft:4 }}>{custInvoices.length}</span>}
         </div>
-      ))}
-      <div style={{ marginTop:18, display:"flex", gap:8 }}>
-        <Btn variant="forest" style={{ flex:1, justifyContent:"center" }}>📄 New Invoice</Btn>
-        <Btn variant="ghost"  style={{ flex:1, justifyContent:"center" }}>💬 WhatsApp</Btn>
       </div>
+
+      {tab === "info" && (
+        <>
+          {[["Contact Person", contactPerson], ["Email", c.email || "—"], ["Phone", phone], ["Total Invoiced", fmt(totalInvoiced, sym)]].map(([k, v]) => (
+            <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #F0EDE4" }}>
+              <span style={{ fontSize:12.5, color:"#6B6455" }}>{k}</span>
+              <span style={{ fontSize:13, fontWeight:500 }}>{v}</span>
+            </div>
+          ))}
+          <div style={{ marginTop:18, display:"flex", gap:8 }}>
+            <Btn variant="forest" style={{ flex:1, justifyContent:"center" }}>📄 New Invoice</Btn>
+            <Btn variant="ghost"  style={{ flex:1, justifyContent:"center" }}>💬 WhatsApp</Btn>
+          </div>
+        </>
+      )}
+
+      {tab === "invoices" && (
+        <div>
+          {custInvoices.length === 0 ? (
+            <div style={{ padding:"30px 0", textAlign:"center", color:"#6B6455", fontSize:13 }}>No invoices found for this customer.</div>
+          ) : (
+            custInvoices.map((inv) => (
+              <div key={inv.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:"1px solid #F0EDE4" }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#1A4A35" }}>{inv.invoice_number}</div>
+                  <div style={{ fontSize:11, color:"#6B6455" }}>Due {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontFamily:"Syne,sans-serif", fontSize:14, fontWeight:700 }}>{fmt(inv.total, sym)}</div>
+                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background: inv.status==="paid" ? "#D4EDE3" : inv.status==="overdue" ? "#FAE0D5" : "#FFF4D6", color: inv.status==="paid" ? "#1A6A40" : inv.status==="overdue" ? "#993A1A" : "#996A10" }}>
+                    {inv.status}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </Modal>
   );
 }

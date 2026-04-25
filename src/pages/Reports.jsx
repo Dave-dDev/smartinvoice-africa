@@ -3,7 +3,6 @@
  * Enhanced with interactive SVG charts, export, and invoice performance.
  */
 
-import { useState } from "react";
 import { Btn, Panel, PanelHeader } from "../components/UI.jsx";
 import { BarChart } from "../components/MiniChart.jsx";
 import { MONTHLY_REVENUE, MONTHLY_EXPENSES, MONTHS, fmt, currencySymbol } from "../data/mockData.js";
@@ -156,6 +155,60 @@ export default function Reports({ invoices, currency }) {
           ))}
         </div>
       </Panel>
+      {/* ── Invoice Aging Report ── */}
+      <InvoiceAgingPanel invoices={invoices || []} sym={sym} />
     </div>
+  );
+}
+
+// ── Invoice Aging Panel ────────────────────────────────────────────────────────
+function InvoiceAgingPanel({ invoices, sym }) {
+  const today = new Date();
+  const unpaid = invoices.filter((i) => i.status !== "paid" && i.due_date);
+
+  const buckets = [
+    { label: "0–30 days",  color: "#1A7A50", days: [0,  30]  },
+    { label: "31–60 days", color: "#E8A020", days: [31, 60]  },
+    { label: "61–90 days", color: "#C4522A", days: [61, 90]  },
+    { label: "90+ days",   color: "#7A1A35", days: [91, Infinity] },
+  ].map((b) => {
+    const invs = unpaid.filter((inv) => {
+      const diff = Math.floor((today - new Date(inv.due_date)) / 86400000);
+      return diff >= b.days[0] && diff <= b.days[1];
+    });
+    return { ...b, count: invs.length, total: invs.reduce((a, i) => a + (i.total || 0), 0) };
+  });
+
+  const maxTotal = Math.max(...buckets.map((b) => b.total), 1);
+
+  return (
+    <Panel style={{ marginTop: 20 }}>
+      <PanelHeader title="📅 Invoice Aging Report" />
+      <div style={{ padding: "20px 22px" }}>
+        <div style={{ fontSize: 12, color: "#6B6455", marginBottom: 16 }}>
+          Outstanding invoices bucketed by how overdue they are
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+          {buckets.map((b) => (
+            <div key={b.label} style={{ padding: "14px 16px", background: "#F9F6EF", borderRadius: 12, borderTop: `3px solid ${b.color}` }}>
+              <div style={{ fontSize: 10.5, color: "#6B6455", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 6 }}>{b.label}</div>
+              <div style={{ fontFamily: "Syne,sans-serif", fontSize: 18, fontWeight: 700, color: b.color }}>{fmt(b.total, sym)}</div>
+              <div style={{ fontSize: 11.5, color: "#6B6455", marginTop: 3 }}>{b.count} invoice{b.count !== 1 ? "s" : ""}</div>
+            </div>
+          ))}
+        </div>
+        {buckets.map((b) => (
+          <div key={b.label} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 12, color: "#6B6455" }}>{b.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{fmt(b.total, sym)}</span>
+            </div>
+            <div style={{ height: 8, background: "#E2DAC8", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${(b.total / maxTotal) * 100}%`, background: b.color, borderRadius: 4, transition: "width .6s ease" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }

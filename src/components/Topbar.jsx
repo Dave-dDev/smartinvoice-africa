@@ -13,9 +13,10 @@ const PAGE_TITLES = {
   reports:            "Reports",
   vat:                "VAT & Taxes",
   "financial-analysis": "Financial Analysis",
+  settings:           "Settings",
 };
 
-export default function Topbar({ page, setSideOpen, currency, setCurrency, invoices = [] }) {
+export default function Topbar({ page, setSideOpen, currency, setCurrency, invoices = [], setPage }) {
   return (
     <header
       style={{
@@ -94,6 +95,17 @@ export default function Topbar({ page, setSideOpen, currency, setCurrency, invoi
 
         {/* Live Notification Bell */}
         <NotificationPanel invoices={invoices} />
+
+        {/* Settings gear */}
+        <button
+          onClick={() => setPage && setPage("settings")}
+          title="Settings"
+          style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:"rgba(255,255,255,.7)", padding:"4px 6px", borderRadius:7, transition:"color .15s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#F5C44A")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,.7)")}
+        >
+          ⚙
+        </button>
 
         {/* User chip */}
         <div

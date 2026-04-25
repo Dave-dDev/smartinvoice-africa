@@ -16,6 +16,7 @@ import Customers from "./pages/Customers.jsx";
 import Reports   from "./pages/Reports.jsx";
 import VATPage   from "./pages/VATPage.jsx";
 import FinancialAnalysis from "./pages/FinancialAnalysis.jsx";
+import Settings         from "./pages/Settings.jsx";
 
 import { INVOICES_DATA } from "./data/mockData.js";
 import { supabase } from "./lib/supabase.js";
@@ -288,10 +289,11 @@ export default function App() {
       case "dashboard":          return <Dashboard {...props} setInvoices={setInvoices} setPage={setPage} />;
       case "invoices":           return <Invoices  {...props} setInvoices={setInvoices} />;
       case "expenses":           return <Expenses  currency={currency} />;
-      case "customers":          return <Customers currency={currency} />;
+      case "customers":          return <Customers currency={currency} invoices={invoices} />;
       case "reports":            return <Reports   {...props} />;
       case "vat":                return <VATPage   currency={currency} />;
       case "financial-analysis": return <FinancialAnalysis currency={currency} />;
+      case "settings":            return <Settings currency={currency} setCurrency={setCurrency} />;
       default:                   return <Dashboard {...props} setInvoices={setInvoices} setPage={setPage} />;
     }
   };
@@ -339,7 +341,7 @@ export default function App() {
         }}
         className={sideOpen ? "sidebar-open" : ""}
       >
-        <Sidebar page={page} setPage={setPage} setSideOpen={setSideOpen} />
+        <Sidebar page={page} setPage={setPage} setSideOpen={setSideOpen} invoices={invoices} />
       </div>
 
       {/* ── Main content ── */}
@@ -351,6 +353,7 @@ export default function App() {
           setCurrency={setCurrency}
           user={user}
           invoices={invoices}
+          setPage={setPage}
         />
         <main>{renderPage()}</main>
       </div>

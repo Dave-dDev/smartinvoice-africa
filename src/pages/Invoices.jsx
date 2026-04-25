@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { Avatar, Badge, Btn, Panel, Modal, Input, Select, RealtimeStatus } from "../components/UI.jsx";
 import { fmt, currencySymbol, makeInitials, AVATAR_COLORS } from "../data/mockData.js";
-import { fetchInvoices, createInvoice, updateInvoiceStatus, deleteInvoice } from "../services/invoiceService.js";
+import { fetchInvoices, createInvoice, updateInvoice, updateInvoiceStatus, deleteInvoice } from "../services/invoiceService.js";
 import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
 import { getDueDateStatus } from "../hooks/useDueDateStatus.js";
 import { exportInvoicesCsv } from "../lib/csvExport.js";
@@ -22,6 +22,9 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
   const [selected, setSelected] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [exportMsg, setExportMsg] = useState(null);
+  const [editInvoice, setEditInvoice] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Load invoices on mount
   useEffect(() => {
@@ -51,6 +54,87 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
       console.error("Failed to create invoice:", e.message);
       setError(e.message);
     }
+  };
+
+  const handleEdit = async (formData) => {
+    try {
+      const updated = await updateInvoice(editInvoice.id, formData);
+      setInvoices((prev) => prev.map((inv) => inv.id === updated.id ? { ...inv, ...updated } : inv));
+      setEditInvoice(null);
+      setSelected(null);
+    } catch (e) {
+      console.error("Failed to update invoice:", e.message);
+      setError(e.message);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteInvoice(deleteTarget.id);
+      setInvoices((prev) => prev.filter((inv) => inv.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setSelected(null);
+    } catch (e) {
+      console.error("Failed to delete invoice:", e.message);
+      setError(e.message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleWhatsApp = (inv) => {
+    const phone = (inv.customer_phone || "").replace(/\D/g, "");
+    const due = inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "soon";
+    const msg = `Hello ${inv.customer_name}, this is a friendly reminder that invoice ${inv.invoice_number} for ${sym}${(inv.total || 0).toLocaleString()} is due on ${due}. Please arrange payment at your earliest convenience. Thank you!`;
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank");
+  };
+
+  const handlePrint = (inv) => {
+    const printWin = window.open("", "_blank", "width=800,height=600");
+    printWin.document.write(`
+      <!DOCTYPE html><html><head><title>${inv.invoice_number}</title>
+      <style>
+        body{font-family:'DM Sans',sans-serif;padding:40px;color:#0D0D0D;background:#fff}
+        h1{font-size:28px;font-weight:800;color:#1A4A35;margin-bottom:4px}
+        .sub{color:#6B6455;font-size:13px;margin-bottom:30px}
+        .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:13px}
+        .total{font-size:18px;font-weight:700;color:#1A4A35}
+        table{width:100%;border-collapse:collapse;margin:20px 0}
+        th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#6B6455;padding:8px 0;border-bottom:2px solid #E2DAC8}
+        td{padding:10px 0;font-size:13px;border-bottom:1px solid #F0EDE4}
+        .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#D4EDE3;color:#1A6A40;text-transform:uppercase}
+        @media print{button{display:none}}
+      </style></head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:30px">
+        <div><h1>SmartInvoice</h1><div class="sub">Africa · Tax Invoice</div></div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:800">${inv.invoice_number}</div>
+          <span class="badge">${inv.status}</span>
+        </div>
+      </div>
+      <div class="row"><span>Bill To</span><span style="font-weight:600">${inv.customer_name}</span></div>
+      ${inv.customer_email ? `<div class="row"><span>Email</span><span>${inv.customer_email}</span></div>` : ""}
+      <div class="row"><span>Due Date</span><span>${inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</span></div>
+      <table>
+        <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+        <tbody>
+          ${(inv.invoice_items || []).map(it => `<tr><td>${it.description}</td><td>${it.quantity}</td><td>${sym}${(it.unit_price||0).toLocaleString()}</td><td>${sym}${((it.quantity||1)*(it.unit_price||0)).toLocaleString()}</td></tr>`).join("") || `<tr><td colspan="4" style="color:#6B6455">No line items recorded</td></tr>`}
+        </tbody>
+      </table>
+      <div style="max-width:300px;margin-left:auto">
+        <div class="row"><span>Subtotal</span><span>${sym}${(inv.subtotal||inv.total||0).toLocaleString()}</span></div>
+        ${inv.vat_rate ? `<div class="row"><span>VAT (${inv.vat_rate}%)</span><span>${sym}${(inv.vat_amount||0).toLocaleString()}</span></div>` : ""}
+        <div class="row total"><span>Total</span><span>${sym}${(inv.total||0).toLocaleString()}</span></div>
+      </div>
+      ${inv.notes ? `<div style="margin-top:24px;padding:14px;background:#F5F0E8;border-radius:8px"><div style="font-size:11px;color:#6B6455;margin-bottom:4px">NOTES</div><div style="font-size:13px">${inv.notes}</div></div>` : ""}
+      <script>window.onload=()=>{window.print();window.close();}<\/script>
+      </body></html>`);
+    printWin.document.close();
   };
 
   const toggleSelect = (id) => {
@@ -207,7 +291,35 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
         invoice={selected}
         onClose={() => setSelected(null)}
         sym={sym}
+        onEdit={(inv) => { setEditInvoice(inv); setSelected(null); }}
+        onDelete={(inv) => setDeleteTarget(inv)}
+        onWhatsApp={handleWhatsApp}
+        onPrint={handlePrint}
+        onStatusChange={async (inv, status) => {
+          await updateInvoiceStatus(inv.id, status);
+          setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status } : i));
+          setSelected(null);
+        }}
       />
+
+      {/* ── Edit Invoice modal ── */}
+      <EditInvoiceModal
+        invoice={editInvoice}
+        onClose={() => setEditInvoice(null)}
+        onSave={handleEdit}
+        sym={sym}
+      />
+
+      {/* ── Delete confirm modal ── */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          invoice={deleteTarget}
+          loading={deleteLoading}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+          sym={sym}
+        />
+      )}
 
       {/* ── Create Invoice modal ── */}
       <CreateInvoiceModal
@@ -240,31 +352,53 @@ function StatusFilter({ active, onChange }) {
 }
 
 // ── View Invoice Modal ────────────────────────────────────────────────────────
-function ViewInvoiceModal({ invoice, onClose, sym }) {
+function ViewInvoiceModal({ invoice, onClose, sym, onEdit, onDelete, onWhatsApp, onPrint, onStatusChange }) {
   if (!invoice) return null;
+  const isPaid = invoice.status === "paid";
   return (
     <Modal open title={`${invoice.invoice_number} — ${invoice.customer_name}`} onClose={onClose}>
-      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <Badge status={invoice.status} />
         <span style={{ fontFamily:"Syne,sans-serif", fontSize:22, fontWeight:800 }}>{fmt(invoice.total, sym)}</span>
       </div>
-      {[["Client", invoice.customer_name], ["Email", invoice.customer_email||"—"], ["Due Date", invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"]].map(([k, v]) => (
+
+      {[["Client", invoice.customer_name], ["Email", invoice.customer_email||"—"], ["Phone", invoice.customer_phone||"—"], ["Due Date", invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"], ["Notes", invoice.notes||"—"]].map(([k, v]) => (
         <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"9px 0", borderBottom:"1px solid #F0EDE4" }}>
           <span style={{ fontSize:12.5, color:"#6B6455" }}>{k}</span>
-          <span style={{ fontSize:13, fontWeight:500 }}>{v}</span>
+          <span style={{ fontSize:13, fontWeight:500, maxWidth:260, textAlign:"right" }}>{v}</span>
         </div>
       ))}
-      <div style={{ marginTop:20, padding:16, background:"#F5F0E8", borderRadius:10 }}>
-        <div style={{ fontSize:12, color:"#6B6455", marginBottom:8, fontWeight:600 }}>Payment Options</div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          <Btn variant="forest" small>🏦 Bank Transfer</Btn>
-          <Btn variant="gold" small>💳 Pay via Paystack</Btn>
-          <Btn variant="ghost" small>📱 Mobile Money</Btn>
+
+      {/* Line items */}
+      {invoice.invoice_items && invoice.invoice_items.length > 0 && (
+        <div style={{ marginTop:16, background:"#F5F0E8", borderRadius:10, padding:"12px 14px" }}>
+          <div style={{ fontSize:11, color:"#6B6455", fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:".6px" }}>Line Items</div>
+          {invoice.invoice_items.map((item, i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, padding:"5px 0", borderBottom:"1px solid #E8E0D0" }}>
+              <span>{item.description} × {item.quantity}</span>
+              <span style={{ fontWeight:600 }}>{fmt((item.unit_price||0)*(item.quantity||1), sym)}</span>
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Status actions */}
+      {!isPaid && (
+        <div style={{ marginTop:16, display:"flex", gap:8, flexWrap:"wrap" }}>
+          <Btn variant="forest" small onClick={() => onStatusChange(invoice, "paid")}>✅ Mark as Paid</Btn>
+          <Btn variant="ghost"  small onClick={() => onStatusChange(invoice, "sent")}>📤 Mark Sent</Btn>
+          <Btn variant="ghost"  small onClick={() => onStatusChange(invoice, "viewed")}>👁 Mark Viewed</Btn>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div style={{ marginTop:14, display:"flex", gap:8, flexWrap:"wrap" }}>
+        <Btn variant="forest" style={{ flex:1, justifyContent:"center" }} onClick={() => onPrint(invoice)}>🖨 Print / PDF</Btn>
+        <Btn variant="ghost"  style={{ flex:1, justifyContent:"center" }} onClick={() => onWhatsApp(invoice)}>💬 WhatsApp</Btn>
       </div>
-      <div style={{ marginTop:14, display:"flex", gap:8 }}>
-        <Btn variant="forest" style={{ flex:1, justifyContent:"center" }}>📤 Send Invoice</Btn>
-        <Btn variant="ghost"  style={{ flex:1, justifyContent:"center" }}>💬 WhatsApp</Btn>
+      <div style={{ marginTop:8, display:"flex", gap:8 }}>
+        <Btn variant="outline" small onClick={() => onEdit(invoice)}>✏️ Edit</Btn>
+        <Btn variant="danger"  small onClick={() => onDelete(invoice)}>🗑 Delete</Btn>
       </div>
     </Modal>
   );
@@ -399,6 +533,109 @@ function Row({ label, val }) {
       <span style={{ color:"#6B6455" }}>{label}</span>
       <strong>{val}</strong>
     </div>
+  );
+}
+
+// ── Delete Confirm Modal ──────────────────────────────────────────────────────
+function DeleteConfirmModal({ invoice, loading, onConfirm, onCancel, sym }) {
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background:"#FDFAF4", borderRadius:16, padding:28, maxWidth:400, width:"100%", boxShadow:"0 24px 60px rgba(0,0,0,.2)" }}>
+        <div style={{ fontSize:32, textAlign:"center", marginBottom:12 }}>🗑</div>
+        <div style={{ fontFamily:"Syne,sans-serif", fontSize:17, fontWeight:700, textAlign:"center", marginBottom:6 }}>Delete Invoice?</div>
+        <div style={{ fontSize:13, color:"#6B6455", textAlign:"center", marginBottom:20 }}>
+          <strong>{invoice.invoice_number}</strong> · {invoice.customer_name} · {fmt(invoice.total, sym)}<br />
+          <span style={{ color:"#C4522A" }}>This action cannot be undone.</span>
+        </div>
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="ghost"  onClick={onCancel}  style={{ flex:1, justifyContent:"center" }}>Cancel</Btn>
+          <Btn variant="danger" onClick={onConfirm} disabled={loading} style={{ flex:1, justifyContent:"center" }}>
+            {loading ? "Deleting…" : "Delete"}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Invoice Modal ────────────────────────────────────────────────────────
+function EditInvoiceModal({ invoice, onClose, onSave, sym }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Populate form when invoice changes
+  useState(() => {
+    if (invoice) {
+      setForm({
+        customerName: invoice.customer_name || "",
+        customerEmail: invoice.customer_email || "",
+        dueDate: invoice.due_date ? invoice.due_date.split("T")[0] : "",
+        vatRate: invoice.vat_rate || 7.5,
+        notes: invoice.notes || "",
+        currency: invoice.currency || "NGN",
+        items: invoice.invoice_items?.length
+          ? invoice.invoice_items.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: i.unit_price }))
+          : [{ description:"", quantity:1, unit_price:"" }]
+      });
+    }
+  }, [invoice]);
+
+  if (!invoice || !form) return null;
+
+  const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const updateItem = (i, field, val) => setForm((f) => { const items = [...f.items]; items[i] = { ...items[i], [field]: val }; return { ...f, items }; });
+  const addItem    = () => setForm((f) => ({ ...f, items: [...f.items, { description:"", quantity:1, unit_price:"" }] }));
+  const removeItem = (i) => setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
+
+  const subtotal = form.items.reduce((a, b) => a + (parseFloat(b.unit_price)||0) * (parseFloat(b.quantity)||1), 0);
+  const vatAmt   = subtotal * (form.vatRate / 100);
+  const total    = subtotal + vatAmt;
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        customerName: form.customerName, customerEmail: form.customerEmail,
+        dueDate: form.dueDate || null,
+        items: form.items.map((i) => ({ description: i.description, quantity: parseFloat(i.quantity)||1, unit_price: parseFloat(i.unit_price)||0 })),
+        vatRate: form.vatRate, notes: form.notes, currency: form.currency
+      });
+    } finally { setSaving(false); }
+  };
+
+  const inputStyle = { padding:"8px 10px", border:"1.5px solid #E2DAC8", borderRadius:7, fontSize:12.5, background:"#F9F6EF", fontFamily:"DM Sans,sans-serif", width:"100%" };
+
+  return (
+    <Modal open onClose={onClose} title={`Edit ${invoice.invoice_number}`}>
+      <div style={{ marginBottom:14 }}><label className="field-label">Customer Name</label><input value={form.customerName} onChange={(e) => set("customerName", e.target.value)} style={inputStyle} /></div>
+      <div style={{ marginBottom:14 }}><label className="field-label">Customer Email</label><input type="email" value={form.customerEmail} onChange={(e) => set("customerEmail", e.target.value)} style={inputStyle} /></div>
+      <div style={{ marginBottom:14 }}><label className="field-label">Due Date</label><input type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} style={inputStyle} /></div>
+
+      <div style={{ marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+          <label className="field-label">Line Items</label>
+          <span onClick={addItem} style={{ fontSize:12, color:"#1A4A35", fontWeight:600, cursor:"pointer" }}>＋ Add item</span>
+        </div>
+        {form.items.map((item, i) => (
+          <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 60px 90px auto", gap:7, marginBottom:7 }}>
+            <input value={item.description} onChange={(e) => updateItem(i,"description",e.target.value)} placeholder="Description" style={inputStyle} />
+            <input value={item.quantity}    onChange={(e) => updateItem(i,"quantity",e.target.value)}    type="number" placeholder="Qty"  style={inputStyle} />
+            <input value={item.unit_price}  onChange={(e) => updateItem(i,"unit_price",e.target.value)}  type="number" placeholder="Price" style={inputStyle} />
+            {form.items.length > 1 && <span onClick={() => removeItem(i)} style={{ cursor:"pointer", fontSize:18, color:"#C4522A", display:"flex", alignItems:"center" }}>×</span>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background:"#F5F0E8", borderRadius:10, padding:14, marginBottom:14 }}>
+        <Row label="Subtotal" val={fmt(subtotal, sym)} />
+        {form.vatRate > 0 && <Row label={`VAT (${form.vatRate}%)`} val={fmt(vatAmt, sym)} />}
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, fontFamily:"Syne,sans-serif", fontWeight:700, marginTop:8, paddingTop:8, borderTop:"1px solid #E2DAC8" }}><span>Total</span><span style={{ color:"#1A4A35" }}>{fmt(total, sym)}</span></div>
+      </div>
+
+      <Btn variant="forest" onClick={handleSubmit} disabled={saving} style={{ width:"100%", justifyContent:"center" }}>
+        {saving ? "Saving…" : "✅ Save Changes"}
+      </Btn>
+    </Modal>
   );
 }
 

@@ -4,16 +4,18 @@
 
 const NAV_ITEMS = [
   { id: "dashboard",          icon: "⬡",  label: "Dashboard",          section: "Main"       },
-  { id: "invoices",           icon: "📄", label: "Invoices",            section: "Main", badge: 3 },
+  { id: "invoices",           icon: "📄", label: "Invoices",            section: "Main", badge: "overdue" },
   { id: "expenses",           icon: "💸", label: "Expenses",            section: "Main"       },
   { id: "customers",          icon: "👥", label: "Customers",           section: "Manage"     },
   { id: "reports",            icon: "📊", label: "Reports",             section: "Manage"     },
   { id: "vat",                icon: "🧾", label: "VAT & Taxes",         section: "Compliance" },
   { id: "financial-analysis", icon: "📂", label: "Financial Analysis",  section: "Insights"   },
+  { id: "settings",           icon: "⚙️", label: "Settings",            section: "Account"    },
 ];
 
-export default function Sidebar({ page, setPage, setSideOpen }) {
+export default function Sidebar({ page, setPage, setSideOpen, invoices = [] }) {
   const sections = [...new Set(NAV_ITEMS.map((n) => n.section))];
+  const overdueCnt = invoices.filter((i) => i.status === "overdue").length;
 
   return (
     <aside
@@ -219,7 +221,7 @@ export default function Sidebar({ page, setPage, setSideOpen }) {
                         borderRadius: 20,
                       }}
                     >
-                      {n.badge}
+                      {n.badge === "overdue" ? (overdueCnt || null) : n.badge}
                     </span>
                   )}
                 </div>
