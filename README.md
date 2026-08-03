@@ -55,8 +55,26 @@ smartinvoice-africa/
         ├── Expenses.jsx         # Expense table, category breakdown
         ├── Customers.jsx        # Customer cards, add/view modals
         ├── Reports.jsx          # Revenue charts, export reports
+        ├── FinancialStatements.jsx # Real P&L, Balance Sheet, Cash Flow
         └── VATPage.jsx          # VAT rates by country, WHT tracker
 ```
+
+### Accounting core (`lib/ledger.js` + `services/ledgerService.js`)
+
+The platform runs on a **double-entry general ledger**. New transactions are
+posted automatically to the ledger; the Financial Statements page derives
+**Profit & Loss, Balance Sheet and Cash Flow** from real data (not mock charts).
+
+| Table | Purpose |
+|---|---|
+| `chart_of_accounts` | Each profile's chart (seeded with a default on sign-in) |
+| `journal_entries` | Header of every double-entry transaction |
+| `journal_lines` | Debits & credits — always balance to zero per entry |
+
+Posting rules (accrual basis):
+- Invoice issued → DR Accounts Receivable / CR Sales Revenue (+ CR VAT Payable)
+- Invoice paid → DR Bank & Cash / CR Accounts Receivable
+- Expense recorded → DR expense account / CR Bank & Cash
 
 ---
 
@@ -80,6 +98,8 @@ smartinvoice-africa/
 | VAT rates for NG, KE, GH, ZA | ✅ |
 | WHT vendor tracker | ✅ |
 | PDF export buttons | ✅ |
+| Double-entry ledger (chart of accounts, journal entries) | ✅ |
+| Financial statements (P&L, Balance Sheet, Cash Flow) from live data | ✅ |
 
 ---
 
@@ -95,10 +115,15 @@ smartinvoice-africa/
 
 ## Roadmap (Phase 2)
 
-- [ ] Offline-first with Service Worker + IndexedDB sync  
-- [ ] Paystack & Flutterwave live API integration  
-- [ ] Real NUBAN virtual account generation  
-- [ ] WhatsApp Business API reminders  
-- [ ] Inventory management (low-stock alerts)  
-- [ ] Invoice financing / lending integration  
-- [ ] Team roles (Accountant, Salesperson, Manager)  
+- [ ] Offline-first with Service Worker + IndexedDB sync
+- [x] Paystack live API integration (inline checkout + webhook)
+- [ ] Flutterwave integration
+- [ ] Real NUBAN virtual account generation
+- [ ] WhatsApp Business API reminders
+- [ ] Bank accounts & statement reconciliation
+- [ ] Bills / payables module (accounts payable)
+- [ ] Budgets & cash-flow forecasting
+- [ ] Tax engine (computed VAT/WHT liabilities from live data)
+- [ ] Inventory management (low-stock alerts)
+- [ ] Invoice financing / lending integration
+- [ ] Team roles (Accountant, Salesperson, Manager)

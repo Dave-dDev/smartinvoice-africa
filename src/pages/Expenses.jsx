@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Btn, Panel, PanelHeader, Modal, Input, Select, RealtimeStatus } from "../components/UI.jsx";
 import { EXPENSES_DATA, EXP_COLORS, fmt, currencySymbol, MONTHLY_EXPENSES } from "../data/mockData.js";
 import { fetchExpenses, createExpense } from "../services/expenseService.js";
+import { postExpenseEntry } from "../services/ledgerService.js";
 import { useRealtimeExpenses } from "../hooks/useRealtimeExpenses.js";
 import { Sparkline } from "../components/MiniChart.jsx";
 
@@ -64,6 +65,11 @@ export default function Expenses({ currency }) {
       setExpenses((prev) => [newExpense, ...prev]);
       setShowModal(false);
       setForm({ vendor:"", category:"Inventory", amount:"", date:"", notes:"" });
+      if (newExpense.profile_id) {
+        postExpenseEntry(newExpense.profile_id, newExpense).catch((e) =>
+          console.warn("Ledger posting failed:", e.message)
+        );
+      }
     } catch (e) {
       console.error("Failed to create expense:", e.message);
       setError(e.message);

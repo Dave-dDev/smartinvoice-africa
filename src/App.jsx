@@ -14,247 +14,15 @@ import Invoices  from "./pages/Invoices.jsx";
 import Expenses  from "./pages/Expenses.jsx";
 import Customers from "./pages/Customers.jsx";
 import Reports   from "./pages/Reports.jsx";
+import FinancialStatements from "./pages/FinancialStatements.jsx";
 import VATPage   from "./pages/VATPage.jsx";
 import FinancialAnalysis from "./pages/FinancialAnalysis.jsx";
 import Settings         from "./pages/Settings.jsx";
 
 import { INVOICES_DATA } from "./data/mockData.js";
 import { supabase } from "./lib/supabase.js";
-
-function AuthPage() {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [businessName, setBusinessName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    // Validation
-    if (!email || !password) {
-      setError("Email and password are required.");
-      setLoading(false);
-      return;
-    }
-
-    if (isSignUp) {
-      if (!businessName || !ownerName) {
-        setError("All fields are required for signup.");
-        setLoading(false);
-        return;
-      }
-      if (password.length < 6) {
-        setError("Password must be at least 6 characters.");
-        setLoading(false);
-        return;
-      }
-    }
-
-    try {
-      if (isSignUp) {
-        // Sign up with Supabase Auth
-        const { data: { user }, error: signupError } = await supabase.auth.signUp({ 
-          email, 
-          password,
-          options: {
-            data: {
-              business_name: businessName,
-              owner_name: ownerName
-            }
-          }
-        });
-        if (signupError) throw signupError;
-        
-        // Create profile using the returned user
-        if (user) {
-          const { error: profileError } = await supabase.from("profiles").insert({
-            id: user.id,
-            email,
-            business_name: businessName,
-            owner_name: ownerName,
-          });
-          if (profileError) {
-            console.error("Profile creation error:", profileError);
-            throw new Error(`Profile creation failed: ${profileError.message}`);
-          }
-          setError("✅ Account created! Check your email to confirm, then sign in.");
-          // Reset form
-          setEmail("");
-          setPassword("");
-          setBusinessName("");
-          setOwnerName("");
-          setTimeout(() => setIsSignUp(false), 2000);
-        }
-      } else {
-        const { error: signinError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signinError) throw signinError;
-      }
-    } catch (err) {
-      console.error("Signup/Signin error:", err);
-      // Provide user-friendly error messages
-      const errorMsg = err.message || "";
-      if (errorMsg.includes("rate limit") || errorMsg.includes("too many")) {
-        setError("Too many attempts. Please wait 60 seconds before trying again.");
-      } else if (errorMsg.includes("already registered") || errorMsg.includes("User already exists")) {
-        setError("This email is already registered. Try signing in instead.");
-      } else if (errorMsg.includes("Invalid login") || errorMsg.includes("wrong")) {
-        setError("Invalid email or password.");
-      } else if (errorMsg.includes("Email not confirmed")) {
-        setError("Please confirm your email first. Check your inbox for a confirmation link.");
-      } else if (errorMsg.includes("Profile creation failed")) {
-        setError(errorMsg);
-      } else if (errorMsg.includes("duplicate key") || errorMsg.includes("profiles")) {
-        setError("⚠️ Profile issue: " + errorMsg);
-      } else {
-        setError(errorMsg || "An error occurred. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      height: "100vh",
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-    }}>
-      <form onSubmit={handleAuth} style={{
-        background: "white",
-        padding: "40px",
-        borderRadius: "8px",
-        boxShadow: "0 8px 16px rgba(0,0,0,0.1)",
-        width: "100%",
-        maxWidth: "400px"
-      }}>
-        <h1 style={{ marginBottom: "20px", textAlign: "center" }}>
-          SmartInvoice Africa
-        </h1>
-        <p style={{ textAlign: "center", color: "#666", marginBottom: "30px" }}>
-          {isSignUp ? "Create your account" : "Sign in to your account"}
-        </p>
-
-        {error && (
-          <div style={{
-            padding: "10px",
-            background: "#fee",
-            color: "#c33",
-            borderRadius: "4px",
-            marginBottom: "15px"
-          }}>
-            {error}
-          </div>
-        )}
-
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            marginBottom: "15px",
-            border: "1px solid #ddd",
-            borderRadius: "4px"
-          }}
-          required
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            marginBottom: "15px",
-            border: "1px solid #ddd",
-            borderRadius: "4px"
-          }}
-          required
-        />
-
-        {isSignUp && (
-          <>
-            <input
-              type="text"
-              placeholder="Business Name"
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                marginBottom: "15px",
-                border: "1px solid #ddd",
-                borderRadius: "4px"
-              }}
-              required
-            />
-
-            <input
-              type="text"
-              placeholder="Owner Name"
-              value={ownerName}
-              onChange={(e) => setOwnerName(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                marginBottom: "15px",
-                border: "1px solid #ddd",
-                borderRadius: "4px"
-              }}
-              required
-            />
-          </>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "12px",
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.7 : 1,
-            marginBottom: "15px",
-            fontWeight: "bold"
-          }}
-        >
-          {loading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
-        </button>
-
-        <div style={{ textAlign: "center" }}>
-          <button
-            type="button"
-            onClick={() => setIsSignUp(!isSignUp)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#667eea",
-              cursor: "pointer",
-              textDecoration: "underline"
-            }}
-          >
-            {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
+import AuthPage from "./components/AuthPage.jsx";
+import { ensureDefaultChart } from "./services/ledgerService.js";
 
 export default function App() {
   // ── Auth state ──
@@ -282,6 +50,15 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Seed the default chart of accounts once a user signs in (fire-and-forget)
+  useEffect(() => {
+    if (user) {
+      ensureDefaultChart(user.id).catch((e) =>
+        console.warn("Chart of accounts seeding failed:", e.message)
+      );
+    }
+  }, [user]);
+
   // ── Page renderer ──
   const renderPage = () => {
     const props = { currency, invoices };
@@ -291,6 +68,7 @@ export default function App() {
       case "expenses":           return <Expenses  currency={currency} />;
       case "customers":          return <Customers currency={currency} invoices={invoices} />;
       case "reports":            return <Reports   {...props} />;
+      case "financial-statements": return <FinancialStatements currency={currency} />;
       case "vat":                return <VATPage   currency={currency} />;
       case "financial-analysis": return <FinancialAnalysis currency={currency} />;
       case "settings":            return <Settings currency={currency} setCurrency={setCurrency} />;
@@ -303,13 +81,30 @@ export default function App() {
     return (
       <div style={{
         display: "flex",
-        justifyContent: "center",
+        flexDirection: "column",
         alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
         height: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        background: "linear-gradient(160deg, #12382A 0%, #1A4A35 55%, #2A6B4F 100%)",
         color: "white",
-        fontSize: "18px"
+        fontSize: "18px",
+        fontFamily: "Syne, sans-serif"
       }}>
+        <div style={{
+          width: 48,
+          height: 48,
+          background: "#E8A020",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 800,
+          fontSize: 22,
+          color: "#0D0D0D"
+        }}>
+          ₦
+        </div>
         Loading…
       </div>
     );

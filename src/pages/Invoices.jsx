@@ -9,6 +9,8 @@ import { fetchInvoices, createInvoice, updateInvoice, updateInvoiceStatus, delet
 import { useRealtimeInvoices } from "../hooks/useRealtimeInvoices.js";
 import { getDueDateStatus } from "../hooks/useDueDateStatus.js";
 import { exportInvoicesCsv } from "../lib/csvExport.js";
+import { payWithPaystack } from "../lib/paystack.js";
+import { postInvoiceEntries } from "../services/ledgerService.js";
 
 export default function Invoices({ invoices: initialInvoices, setInvoices: setInitialInvoices, currency }) {
   const sym = currencySymbol(currency);
@@ -45,11 +47,22 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
     return matchFilter && matchSearch;
   });
 
+  // ── General Ledger posting (fire-and-forget; failures must not block the UI) ──
+  const postLedger = async (inv) => {
+    if (!inv || !inv.profile_id) return;
+    try {
+      await postInvoiceEntries(inv.profile_id, inv);
+    } catch (e) {
+      console.warn("Ledger posting failed:", e.message);
+    }
+  };
+
   const handleCreate = async (formData) => {
     try {
       const newInvoice = await createInvoice(formData);
       setInvoices((prev) => [newInvoice, ...prev]);
       setShowCreate(false);
+      postLedger(newInvoice);
     } catch (e) {
       console.error("Failed to create invoice:", e.message);
       setError(e.message);
@@ -94,8 +107,58 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
     window.open(url, "_blank");
   };
 
-  const handlePrint = (inv) => {
-    const printWin = window.open("", "_blank", "width=800,height=600");
+  // ── Paystack inline checkout ──
+  const [payState, setPayState] = useState(null); // { invoiceNumber, phase } phase: idle|initializing|success|error
+  const [payMessage, setPayMessage] = useState("");
+
+  const handlePay = async (inv) => {
+    const email = inv.customer_email;
+    if (!email) {
+      setPayState({ invoiceNumber: inv.invoice_number, phase: "error" });
+      setPayMessage("Add a customer email to this invoice to accept online payments.");
+      return;
+    }
+    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    if (!publicKey) {
+      setPayState({ invoiceNumber: inv.invoice_number, phase: "error" });
+      setPayMessage("Paystack isn't configured yet. Add VITE_PAYSTACK_PUBLIC_KEY to your .env file.");
+      return;
+    }
+
+    setPayState({ invoiceNumber: inv.invoice_number, phase: "initializing" });
+    setPayMessage("");
+    try {
+      await payWithPaystack({
+        publicKey,
+        email,
+        amount: inv.total || 0,
+        currency: inv.currency || "NGN",
+        reference: `INV-${inv.invoice_number}-${Date.now()}`,
+        metadata: {
+          invoice_number: inv.invoice_number,
+          customer_name: inv.customer_name,
+        },
+        onSuccess: async (transaction) => {
+          // Optimistically mark paid; the webhook also reconciles server-side.
+          await updateInvoiceStatus(inv.id, "paid").catch(() => {});
+          setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status: "paid", paid_at: new Date().toISOString() } : i));
+          postLedger({ ...inv, status: "paid" });
+          setPayState({ invoiceNumber: inv.invoice_number, phase: "success" });
+          setPayMessage(`Payment received! Reference: ${transaction.reference}`);
+          setTimeout(() => setSelected(null), 1200);
+        },
+        onClose: () => {
+          setPayState({ invoiceNumber: inv.invoice_number, phase: "idle" });
+          setPayMessage("");
+        },
+      });
+    } catch (err) {
+      setPayState({ invoiceNumber: inv.invoice_number, phase: "error" });
+      setPayMessage(err.message);
+    }
+  };
+
+  const handlePrint = (inv) => {    const printWin = window.open("", "_blank", "width=800,height=600");
     printWin.document.write(`
       <!DOCTYPE html><html><head><title>${inv.invoice_number}</title>
       <style>
@@ -295,10 +358,14 @@ export default function Invoices({ invoices: initialInvoices, setInvoices: setIn
         onDelete={(inv) => setDeleteTarget(inv)}
         onWhatsApp={handleWhatsApp}
         onPrint={handlePrint}
+        onPay={handlePay}
+        payState={payState}
+        payMessage={payMessage}
         onStatusChange={async (inv, status) => {
           await updateInvoiceStatus(inv.id, status);
           setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status } : i));
           setSelected(null);
+          postLedger({ ...inv, status });
         }}
       />
 
@@ -352,9 +419,12 @@ function StatusFilter({ active, onChange }) {
 }
 
 // ── View Invoice Modal ────────────────────────────────────────────────────────
-function ViewInvoiceModal({ invoice, onClose, sym, onEdit, onDelete, onWhatsApp, onPrint, onStatusChange }) {
+function ViewInvoiceModal({ invoice, onClose, sym, onEdit, onDelete, onWhatsApp, onPrint, onStatusChange, onPay, payState, payMessage }) {
   if (!invoice) return null;
   const isPaid = invoice.status === "paid";
+  const isPaying = payState?.invoiceNumber === invoice.invoice_number && payState?.phase === "initializing";
+  const payError = payState?.invoiceNumber === invoice.invoice_number && payState?.phase === "error";
+  const paySuccess = payState?.invoiceNumber === invoice.invoice_number && payState?.phase === "success";
   return (
     <Modal open title={`${invoice.invoice_number} — ${invoice.customer_name}`} onClose={onClose}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
@@ -382,12 +452,44 @@ function ViewInvoiceModal({ invoice, onClose, sym, onEdit, onDelete, onWhatsApp,
         </div>
       )}
 
+      {/* Payment status message */}
+      {(payError || paySuccess) && payState?.invoiceNumber === invoice.invoice_number && (
+        <div style={{
+          marginTop: 14,
+          padding: "11px 14px",
+          borderRadius: 9,
+          fontSize: 12.5,
+          lineHeight: 1.4,
+          background: paySuccess ? "#D4EDE3" : "#FAE0D5",
+          color: paySuccess ? "#1A6A40" : "#993A1A",
+        }}>
+          {paySuccess ? "✅ " : "⚠️ "}{payMessage}
+        </div>
+      )}
+
       {/* Status actions */}
       {!isPaid && (
-        <div style={{ marginTop:16, display:"flex", gap:8, flexWrap:"wrap" }}>
+        <div style={{ marginTop: 16, display:"flex", gap:8, flexWrap:"wrap" }}>
           <Btn variant="forest" small onClick={() => onStatusChange(invoice, "paid")}>✅ Mark as Paid</Btn>
           <Btn variant="ghost"  small onClick={() => onStatusChange(invoice, "sent")}>📤 Mark Sent</Btn>
           <Btn variant="ghost"  small onClick={() => onStatusChange(invoice, "viewed")}>👁 Mark Viewed</Btn>
+        </div>
+      )}
+
+      {/* Pay Now */}
+      {!isPaid && (
+        <div style={{ marginTop: 16 }}>
+          <Btn
+            variant="gold"
+            style={{ width:"100%", justifyContent:"center", padding:"12px 18px", fontSize:14, fontWeight:700 }}
+            onClick={() => onPay(invoice)}
+            disabled={isPaying}
+          >
+            {isPaying ? "Connecting to Paystack…" : `💳 Pay Now — ${fmt(invoice.total, sym)}`}
+          </Btn>
+          <div style={{ marginTop:6, textAlign:"center", fontSize:11, color:"#6B6455" }}>
+            Secure checkout by Paystack · Card, Bank Transfer, USSD &amp; Mobile Money
+          </div>
         </div>
       )}
 

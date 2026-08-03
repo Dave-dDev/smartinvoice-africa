@@ -105,7 +105,60 @@ create table if not exists expenses (
 );
 
 -- ============================================================================
--- 6. AUTO-UPDATE TRIGGERS for updated_at
+-- 6. PAYMENT TRANSACTIONS (Paystack reconciliation)
+-- ============================================================================
+create table if not exists payment_transactions (
+  id              uuid         default uuid_generate_v4() primary key,
+  reference       text         not null unique,
+  invoice_number  text         not null,
+  amount          numeric      not null,
+  currency        text         not null default 'NGN',
+  status          text         not null default 'pending', -- pending | paid | failed
+  provider        text         not null default 'paystack',
+  paid_at         timestamptz,
+  created_at      timestamptz  default now()
+);
+
+-- ============================================================================
+-- 7. ACCOUNTING CORE — Double-Entry General Ledger
+-- ============================================================================
+-- Chart of Accounts
+create table if not exists chart_of_accounts (
+  id           uuid        default uuid_generate_v4() primary key,
+  profile_id   uuid        references profiles(id) on delete cascade not null,
+  code         text        not null,                 -- e.g. '1200'
+  name         text        not null,                 -- e.g. 'Accounts Receivable'
+  account_type text        not null                  -- asset | liability | equity | income | expense
+    check (account_type in ('asset','liability','equity','income','expense')),
+  category     text        default 'Operating',      -- Operating | Tax | Other
+  is_system    boolean     default false,            -- seeded by the app, not user-editable
+  created_at   timestamptz default now(),
+  unique (profile_id, code)
+);
+
+-- Journal Entries (the header of each double-entry transaction)
+create table if not exists journal_entries (
+  id          uuid         default uuid_generate_v4() primary key,
+  profile_id  uuid         references profiles(id) on delete cascade not null,
+  entry_date  date         not null default current_date,
+  source_type text         not null,                 -- invoice | payment | expense | journal
+  source_id   text,
+  description text,
+  reference   text,
+  created_at  timestamptz  default now()
+);
+
+-- Journal Lines (the debits and credits — must balance to zero per entry)
+create table if not exists journal_lines (
+  id               uuid    default uuid_generate_v4() primary key,
+  journal_entry_id uuid    references journal_entries(id) on delete cascade not null,
+  account_id       uuid    references chart_of_accounts(id) on delete restrict not null,
+  debit            numeric not null default 0,
+  credit           numeric not null default 0
+);
+
+-- ============================================================================
+-- 8. AUTO-UPDATE TRIGGERS for updated_at
 -- ============================================================================
 create or replace function update_updated_at()
 returns trigger as $$
@@ -128,7 +181,7 @@ create trigger if not exists trg_customers_updated_at
   for each row execute function update_updated_at();
 
 -- ============================================================================
--- 7. AUTO-GENERATE INVOICE NUMBERS
+-- 9. AUTO-GENERATE INVOICE NUMBERS
 -- ============================================================================
 create or replace function generate_invoice_number(p_profile_id uuid)
 returns text as $$
@@ -147,7 +200,7 @@ end;
 $$ language plpgsql;
 
 -- ============================================================================
--- 8. ROW LEVEL SECURITY (RLS)
+-- 10. ROW LEVEL SECURITY (RLS)
 -- ============================================================================
 
 -- Enable RLS on all tables
@@ -156,6 +209,10 @@ alter table customers  enable row level security;
 alter table invoices   enable row level security;
 alter table invoice_items enable row level security;
 alter table expenses   enable row level security;
+alter table payment_transactions enable row level security;
+alter table chart_of_accounts enable row level security;
+alter table journal_entries enable row level security;
+alter table journal_lines enable row level security;
 
 -- Profiles: users manage only their own profile
 create policy "profiles: own row only"
@@ -186,6 +243,30 @@ create policy "expenses: own profile only"
   on expenses for all
   using (profile_id = auth.uid());
 
+-- Payment transactions: visible to all authenticated users (reconciled by webhook)
+create policy "payment_transactions: authenticated read"
+  on payment_transactions for select
+  using (auth.role() = 'authenticated');
+
+-- Chart of Accounts: belong to the authenticated user's profile
+create policy "chart_of_accounts: own profile only"
+  on chart_of_accounts for all
+  using (profile_id = auth.uid());
+
+-- Journal Entries: belong to the authenticated user's profile
+create policy "journal_entries: own profile only"
+  on journal_entries for all
+  using (profile_id = auth.uid());
+
+-- Journal Lines: accessible via parent journal entry ownership
+create policy "journal_lines: own entries only"
+  on journal_lines for all
+  using (
+    journal_entry_id in (
+      select id from journal_entries where profile_id = auth.uid()
+    )
+  );
+
 -- ============================================================================
 -- 9. CREATE INDEXES FOR PERFORMANCE
 -- ============================================================================
@@ -194,9 +275,13 @@ create index if not exists idx_invoices_profile_id on invoices(profile_id);
 create index if not exists idx_invoices_customer_id on invoices(customer_id);
 create index if not exists idx_invoice_items_invoice_id on invoice_items(invoice_id);
 create index if not exists idx_expenses_profile_id on expenses(profile_id);
+create index if not exists idx_payment_tx_reference on payment_transactions(reference);
+create index if not exists idx_journal_entries_profile on journal_entries(profile_id);
+create index if not exists idx_journal_lines_entry on journal_lines(journal_entry_id);
+create index if not exists idx_chart_of_accounts_profile on chart_of_accounts(profile_id);
 
 -- ============================================================================
--- 10. ENABLE REALTIME (for live updates)
+-- 11. ENABLE REALTIME (for live updates)
 -- ============================================================================
 -- Go to Supabase Dashboard → Database → Replication
 -- Toggle ON for: invoices, expenses, customers

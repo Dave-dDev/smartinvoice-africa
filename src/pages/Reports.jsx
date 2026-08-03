@@ -3,6 +3,7 @@
  * Enhanced with interactive SVG charts, export, and invoice performance.
  */
 
+import { useState } from "react";
 import { Btn, Panel, PanelHeader } from "../components/UI.jsx";
 import { BarChart } from "../components/MiniChart.jsx";
 import { MONTHLY_REVENUE, MONTHLY_EXPENSES, MONTHS, fmt, currencySymbol } from "../data/mockData.js";
